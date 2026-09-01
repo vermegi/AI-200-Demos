@@ -1,0 +1,3 @@
+[submodule "mslearn-azure-ai"]
+	path = mslearn-azure-ai
+	url = https://github.com/MicrosoftLearning/mslearn-azure-ai
