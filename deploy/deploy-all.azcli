@@ -1,5 +1,6 @@
 $userHash = "20260902"
 $location = "francecentral"
+$embeddingsApiKey = "demo-key-12345"
 
 # USE MCAPS ACCOUNT!
 az login
@@ -13,7 +14,7 @@ az deployment sub create `
     --name $deploymentName `
     --location $location `
     --template-file $templateFile `
-    --parameters userHash=$userHash location=$location principalId=$myId
+    --parameters userHash=$userHash location=$location principalId=$myId embeddingsApiKey=$embeddingsApiKey
 
 $outputs = az deployment sub show --name $deploymentName --query properties.outputs | ConvertFrom-Json
 
@@ -32,6 +33,9 @@ $containerAppsEnvironment = $outputs.containerAppsEnvironment.value
 $containerAppName = $outputs.containerApp.value
 $containerAppUrl = $outputs.containerAppUrl.value
 $containerAppPrincipalId = $outputs.containerAppPrincipalId.value
+$manageContainerApp = $outputs.manageContainerApp.value
+$manageContainerAppUrl = $outputs.manageContainerAppUrl.value
+$manageContainerAppPrincipalId = $outputs.manageContainerAppPrincipalId.value
 $logAnalyticsWorkspace = $outputs.logAnalyticsWorkspace.value
 
 echo $rg
@@ -49,6 +53,9 @@ echo $containerAppsEnvironment
 echo $containerAppName
 echo $containerAppUrl
 echo $containerAppPrincipalId
+echo $manageContainerApp
+echo $manageContainerAppUrl
+echo $manageContainerAppPrincipalId
 echo $logAnalyticsWorkspace
 
 

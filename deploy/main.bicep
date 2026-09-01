@@ -17,12 +17,17 @@ param appServicePlanSku string = 'P0v3'
 @description('Placeholder container image used until the ACR image is built and pushed from the CLI script.')
 param placeholderContainerImage string = 'DOCKER|mcr.microsoft.com/appsvc/staticsite:latest'
 
+@description('Embeddings API key stored as a secret on the manage demo container app.')
+@secure()
+param embeddingsApiKey string
+
 var resourceGroupName = 'rg-AI200-${userHash}'
 var registryName = 'acr${userHash}'
 var appServicePlanName = 'plan-docprocessor-${userHash}'
 var webAppName = 'app-docprocessor-${userHash}'
 var containerAppsEnvironmentName = 'aca-env-demo'
 var containerAppName = 'ai-api'
+var manageContainerAppName = 'ai-api-manage'
 var logAnalyticsWorkspaceName = 'log-ai200-${userHash}'
 
 resource resourceGroup 'Microsoft.Resources/resourceGroups@2025-04-01' = {
@@ -89,6 +94,8 @@ module containerApps './container-apps.bicep' = {
   params: {
     environmentName: containerAppsEnvironmentName
     containerAppName: containerAppName
+    manageContainerAppName: manageContainerAppName
+    embeddingsApiKey: embeddingsApiKey
     location: location
     registryName: registry.outputs.name
     logAnalyticsWorkspaceName: logAnalytics.outputs.name
@@ -112,4 +119,7 @@ output containerAppsEnvironment string = containerApps.outputs.environmentName
 output containerApp string = containerApps.outputs.containerAppName
 output containerAppUrl string = containerApps.outputs.containerAppUrl
 output containerAppPrincipalId string = containerApps.outputs.containerAppPrincipalId
+output manageContainerApp string = containerApps.outputs.manageContainerAppName
+output manageContainerAppUrl string = containerApps.outputs.manageContainerAppUrl
+output manageContainerAppPrincipalId string = containerApps.outputs.manageContainerAppPrincipalId
 output logAnalyticsWorkspace string = logAnalytics.outputs.name

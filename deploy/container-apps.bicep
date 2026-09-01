@@ -22,6 +22,21 @@ param containerImage string = 'mcr.microsoft.com/k8se/quickstart:latest'
 @description('Container port exposed through external ingress.')
 param targetPort int = 80
 
+@description('Name of the container app used for the manage and troubleshoot demo.')
+@minLength(2)
+@maxLength(32)
+param manageContainerAppName string
+
+@description('Container port the manage demo image listens on once it is deployed.')
+param manageTargetPort int = 8000
+
+@description('Model name exposed to the manage demo container.')
+param modelName string = 'gpt-4o-mini'
+
+@description('Embeddings API key stored as a container app secret.')
+@secure()
+param embeddingsApiKey string
+
 @description('Name of the shared Log Analytics workspace.')
 @minLength(4)
 @maxLength(63)
@@ -104,6 +119,69 @@ resource containerAppRoleAssignments 'Microsoft.Authorization/roleAssignments@20
   }
 }]
 
+// Ingress already targets the port of the image the demo script pushes later, not the quickstart image.
+resource manageContainerApp 'Microsoft.App/containerApps@2025-01-01' = {
+  name: manageContainerAppName
+  location: location
+  identity: {
+    type: 'SystemAssigned'
+  }
+  properties: {
+    environmentId: managedEnvironment.id
+    configuration: {
+      ingress: {
+        external: true
+        targetPort: manageTargetPort
+        transport: 'auto'
+      }
+      secrets: [
+        {
+          name: 'embeddings-api-key'
+          value: embeddingsApiKey
+        }
+      ]
+      registries: [
+        {
+          server: registry.properties.loginServer
+          identity: 'system'
+        }
+      ]
+    }
+    template: {
+      containers: [
+        {
+          name: manageContainerAppName
+          image: containerImage
+          env: [
+            {
+              name: 'MODEL_NAME'
+              value: modelName
+            }
+            {
+              name: 'EMBEDDINGS_API_KEY'
+              secretRef: 'embeddings-api-key'
+            }
+          ]
+        }
+      ]
+      scale: {
+        minReplicas: 0
+        maxReplicas: 10
+      }
+    }
+  }
+}
+
+resource manageContainerAppRoleAssignments 'Microsoft.Authorization/roleAssignments@2022-04-01' = [for roleId in containerAppRoleIds: {
+  scope: registry
+  name: guid(registry.id, manageContainerApp.id, roleId)
+  properties: {
+    principalId: manageContainerApp.identity.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roleId)
+  }
+}]
+
 resource environmentDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
   scope: managedEnvironment
   name: 'send-to-log-analytics'
@@ -124,3 +202,7 @@ output containerAppName string = containerApp.name
 output containerAppFqdn string = containerApp.properties.configuration.ingress.fqdn
 output containerAppUrl string = 'https://${containerApp.properties.configuration.ingress.fqdn}'
 output containerAppPrincipalId string = containerApp.identity.principalId
+output manageContainerAppName string = manageContainerApp.name
+output manageContainerAppFqdn string = manageContainerApp.properties.configuration.ingress.fqdn
+output manageContainerAppUrl string = 'https://${manageContainerApp.properties.configuration.ingress.fqdn}'
+output manageContainerAppPrincipalId string = manageContainerApp.identity.principalId
