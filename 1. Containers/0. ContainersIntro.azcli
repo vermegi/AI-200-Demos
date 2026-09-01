@@ -1,0 +1,25 @@
+$userHash = "20260826"
+
+mkdir "CleanFolder$userHash"
+
+cd "CleanFolder$userHash"
+
+dotnet new blazor -n MyFirstAzWebApp --framework net10.0
+cd .\MyFirstAzWebApp\
+dotnet run --urls=https://localhost:5001/
+
+#GHCP --> CHANGE FOLDER NAME!
+Can you generate me the basic dockerfile for the .net app that I have in the CleanFolder20260615\MyFirstAzWebApp\ folder?
+
+# Docker build and run (make sure docker deamon is running)
+docker buildx build --platform linux/amd64 --provenance=false -t "myfirstazurewebapp:${userHash}-v1" .
+
+docker images
+docker run --rm -p 8080:8080 "myfirstazurewebapp:${userHash}-v1"
+# Go to localhost:8080
+
+docker images
+docker ps 
+docker images
+docker pull nginx
+docker images

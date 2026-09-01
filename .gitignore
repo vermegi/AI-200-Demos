@@ -1,0 +1,67 @@
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+!.env.template
+*.pfx
+*.publishsettings
+*.pubxml.user
+appsettings.Local.json
+appsettings.*.local.json
+local.settings.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+*.egg-info/
+.eggs/
+.ipynb_checkpoints/
+
+# .NET
+[Bb]in/
+[Oo]bj/
+artifacts/
+.vs/
+[Tt]est[Rr]esults/
+BenchmarkDotNet.Artifacts/
+*.user
+*.suo
+*.rsuser
+*.nupkg
+*.snupkg
+coverage*.json
+coverage*.xml
+coverage*.info
+*.coverage
+*.coveragexml
+
+# Azure local state
+.azure/
+
+# Editors and operating systems
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Logs and temporary files
+*.log
+*.tmp
+*~
+
+**/CleanFolder*/
+**/**/k8s/*-[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9].yaml

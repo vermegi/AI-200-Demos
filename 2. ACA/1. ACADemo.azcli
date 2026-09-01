@@ -1,0 +1,123 @@
+# Variables
+$userHash = "20260616"
+$rg = "rg-AI200-$userHash"
+$location = "francecentral"
+$acrName = "acr$userHash"
+
+$containerAppsEnvironment = "aca-env-demo"
+
+# Explore Container Apps environments
+az containerapp env create `
+	--name $containerAppsEnvironment `
+	--resource-group $rg `
+	--location $location
+
+az containerapp env show `
+	--name $containerAppsEnvironment `
+	--resource-group $rg
+
+$quickstartAppName = "container-app-quickstart"
+$image = "mcr.microsoft.com/k8se/quickstart:latest"
+
+
+# Deploy quickly with az containerapp up
+az containerapp up `
+	--name $quickstartAppName `
+	--resource-group $rg `
+	--location $location `
+	--environment $containerAppsEnvironment `
+	--image $image `
+	--target-port 80 `
+	--ingress external `
+	--query properties.configuration.ingress.fqdn
+
+$appName = "ai-api"
+
+
+# Deploy with az containerapp create
+az containerapp create `
+	--name $appName `
+	--resource-group $rg `
+	--environment $containerAppsEnvironment `
+	--image $image `
+	--ingress external `
+	--target-port 80
+
+$container_image="ai-api:v1"
+
+cd aca-deploy-python
+
+az acr build `
+	--resource-group $rg `
+	--registry $acrName `
+	--image $container_image `
+	--file api/Dockerfile `
+	--no-logs `
+	--source-acr-auth-id [caller] `
+	api/
+
+$updatedImage = "$acrName.azurecr.io/$container_image"
+
+
+# Enable system-assigned managed identity on the Container App
+az containerapp identity assign `
+	--name $appName `
+	--resource-group $rg `
+	--system-assigned
+
+# Capture the Container App managed identity principal ID
+$containerAppPrincipalId = az containerapp show `
+	--name $appName `
+	--resource-group $rg `
+	--query identity.principalId `
+	--output tsv
+
+# Get ACR resource ID for RBAC scope
+$acrResourceId = az acr show `
+	--name $acrName `
+	--resource-group $rg `
+	--query id `
+	--output tsv
+
+# ABAC-enabled ACR: grant pull rights with repository reader role
+az role assignment create `
+	--assignee-object-id $containerAppPrincipalId `
+	--assignee-principal-ty`pe ServicePrincipal `
+	--role "Container Registry Repository Reader" `
+	--scope $acrResourceId
+
+# Configure Container App to use system-managed identity for ACR pulls
+az containerapp registry set `
+	--name $appName `
+	--resource-group $rg `
+	--server "$acrName.azurecr.io" `
+	--identity system
+
+az containerapp ingress update `
+	--name $appName `
+	--resource-group $rg `
+	--target-port 8000
+
+# Update an app by creating a new revision
+az containerapp update `
+	--name $appName `
+	--resource-group $rg `
+	--image $updatedImage 
+
+$embeddingsApiKey = "demo-key-12345"
+
+az containerapp secret set `
+	-n $appName `
+	-g $rg `
+    --secrets embeddings-api-key=$embeddingsApiKey
+
+az containerapp update `
+	--name $appName `
+	--resource-group $rg `
+    --set-env-vars EMBEDDINGS_API_KEY=secretref:embeddings-api-key
+
+az containerapp revision list `
+	--name $appName `
+	--resource-group $rg `
+	-o table
+

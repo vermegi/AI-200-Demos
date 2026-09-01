@@ -1,0 +1,176 @@
+# Variables
+$userHash = "20260616"
+$rg = "rg-AI200-$userHash"
+$location = "francecentral"
+
+$acrName = "acr$userHash"
+$aksName = "aks-$userHash"
+$foundryName = "foundry-resource-$userHash"
+$foundryProjectName = "foundry-project-$userHash"
+
+cd 'C:\Users\gvermeiren\github\AI-200-Demos\3. AKS'
+
+# Build and push the API image with an ACR Task.
+# This uses the caller's existing ACR permissions; admin user credentials are not required.
+az acr build `
+    --registry $acrName `
+    --image aks-troubleshoot-api:latest `
+    --file .\aks-troubleshoot-python\api\Dockerfile `
+    --source-acr-auth-id [caller] `
+    .\aks-troubleshoot-python\api\
+
+$templateDeploymentFile = ".\\aks-troubleshoot-python\\k8s\\api-deployment.yaml"
+$deploymentFile = ".\\aks-troubleshoot-python\\k8s\\api-deployment-$userHash.yaml"
+(Get-Content $templateDeploymentFile -Raw).Replace("ACR_ENDPOINT", "$acrName.azurecr.io") | Set-Content $deploymentFile -NoNewline
+
+# Create the namespace used by the troubleshooting exercise.
+kubectl create namespace aks-troubleshoot `
+    --dry-run=client `
+    --output yaml | kubectl apply --filename -
+
+kubectl get namespaces
+
+# Deploy the API and its internal service.
+kubectl apply `
+    --filename $deploymentFile `
+    --namespace aks-troubleshoot
+
+kubectl apply `
+    --filename .\aks-troubleshoot-python\k8s\api-service.yaml `
+    --namespace aks-troubleshoot
+
+# Verify that the API deployment becomes ready.
+kubectl rollout status deployment/api-deployment `
+    --namespace aks-troubleshoot `
+    --timeout=120s
+
+##############################################
+# Troubleshoot the deployment
+##############################################
+
+### Verify the deployment
+
+# The pod should report Running with 1/1 in the READY column.
+kubectl get pods `
+    --namespace aks-troubleshoot
+
+# The service should list one endpoint slice with an IP address.
+kubectl get endpointslices `
+    --selector kubernetes.io/service-name=api-service `
+    --namespace aks-troubleshoot
+
+# Expect an error message, since port forwarding has not been configured (yet).
+Invoke-RestMethod http://localhost:8080/healthz
+
+# Tunnel from the local machine to the service, then browse to http://localhost:8080.
+kubectl port-forward service/api-service 8080:80 `
+    --namespace aks-troubleshoot
+
+# Run in a second terminal. Expect a JSON response with "status": "healthy".
+Invoke-RestMethod http://localhost:8080/healthz
+
+# Press ctrl+c in the port-forward terminal to stop the tunnel.
+
+### Diagnose a label mismatch
+
+# Apply a service whose selector is app: api-v2 while the pods are labeled app: api.
+kubectl apply `
+    --filename .\aks-troubleshoot-python\k8s\label-mismatch-service.yaml `
+    --namespace aks-troubleshoot
+
+# The pod is still Running 1/1 and keeps the app=api label.
+kubectl get pods `
+    --show-labels `
+    --namespace aks-troubleshoot
+
+# The endpoint slice now shows <unset> in the ENDPOINTS column.
+kubectl get endpointslices `
+    --selector kubernetes.io/service-name=api-service `
+    --namespace aks-troubleshoot
+
+# The Selector field confirms the mismatch: app=api-v2.
+kubectl describe service api-service `
+    --namespace aks-troubleshoot
+
+# In the editor, change the selector from app: api-v2 back to app: api, then save and close.
+kubectl edit service api-service `
+    --namespace aks-troubleshoot
+
+# The endpoint slice lists an IP address again.
+kubectl get endpointslices `
+    --selector kubernetes.io/service-name=api-service `
+    --namespace aks-troubleshoot
+
+### Diagnose a CrashLoopBackOff
+
+$templateCrashLoopDeploymentFile = ".\\aks-troubleshoot-python\\k8s\\crashloop-deployment.yaml"
+$crashLoopDeploymentFile = ".\\aks-troubleshoot-python\\k8s\\crashloop-deployment-$userHash.yaml"
+(Get-Content $templateCrashLoopDeploymentFile -Raw).Replace("ACR_ENDPOINT", "$acrName.azurecr.io") | Set-Content $crashLoopDeploymentFile -NoNewline
+
+# Apply a deployment that removes the required API_KEY environment variable.
+kubectl apply `
+    --filename $crashLoopDeploymentFile `
+    --namespace aks-troubleshoot
+
+# Watch the pod enter CrashLoopBackOff, then press ctrl+c to exit.
+kubectl get pods `
+    --namespace aks-troubleshoot `
+    --watch
+
+# The logs report the missing environment variable.
+kubectl logs `
+    --selector app=api `
+    --namespace aks-troubleshoot
+
+# fixes the crashloopbackoff
+kubectl apply `
+    --filename $deploymentFile `
+    --namespace aks-troubleshoot
+
+# Watch the pod return to Running, then press ctrl+c to exit.
+kubectl get pods `
+    --namespace aks-troubleshoot `
+    --watch
+
+### Diagnose a readiness probe failure
+
+$templateProbeFailureDeploymentFile = ".\\aks-troubleshoot-python\\k8s\\probe-failure-deployment.yaml"
+$probeFailureDeploymentFile = ".\\aks-troubleshoot-python\\k8s\\probe-failure-deployment-$userHash.yaml"
+(Get-Content $templateProbeFailureDeploymentFile -Raw).Replace("ACR_ENDPOINT", "$acrName.azurecr.io") | Set-Content $probeFailureDeploymentFile -NoNewline
+
+# Apply a deployment that uses an invalid readiness probe path.
+kubectl apply `
+    --filename $probeFailureDeploymentFile `
+    --namespace aks-troubleshoot
+
+# The new pod is Running but 0/1 ready, while the old pod stays 1/1 and serves traffic.
+kubectl get pods `
+    --namespace aks-troubleshoot
+
+# Look for the readiness probe failing with a 404 status code.
+kubectl get events `
+    --namespace aks-troubleshoot `
+    --field-selector reason=Unhealthy
+
+# In the editor, change the readinessProbe path from /invalid-path to /healthz, then save and close.
+kubectl edit deployment api-deployment `
+    --namespace aks-troubleshoot
+
+# Only one pod remains, Running with 1/1 in the READY column.
+kubectl get pods `
+    --namespace aks-troubleshoot
+
+### Verify end-to-end connectivity
+
+kubectl port-forward service/api-service 8080:80 `
+    --namespace aks-troubleshoot
+
+# Run in a second terminal.
+Invoke-RestMethod http://localhost:8080/healthz
+Invoke-RestMethod http://localhost:8080/readyz
+Invoke-RestMethod http://localhost:8080/api/info
+
+# The logs show the requests handled by the API.
+kubectl logs `
+    --selector app=api `
+    --namespace aks-troubleshoot

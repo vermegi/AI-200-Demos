@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cosmos-client-config
+  labels:
+    app: cosmos-client
+data:
+  # Non-sensitive Cosmos DB connection settings read by rag_functions.get_container()
+  # Replace COSMOS_ENDPOINT_VALUE with the output of:
+  #   az cosmosdb show -g <rg> -n <cosmosName> --query documentEndpoint -o tsv
+  COSMOS_ENDPOINT: "COSMOS_ENDPOINT_VALUE"
+  COSMOS_DATABASE: "ragstore"
+  COSMOS_CONTAINER: "chunks"

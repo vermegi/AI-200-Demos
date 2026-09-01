@@ -1,0 +1,194 @@
+# Variables
+$userHash = "20260616"
+$rg = "rg-AI200-$userHash"
+$location = "francecentral"
+$acrName = "acr$userHash"
+
+# Existing ACA environment (already deployed)
+$containerAppsEnvironment = "aca-env-demo"
+
+# Use a new app and a distinct image name to avoid confusion with previous sample
+$appName = "ai-api-manage"
+$containerImage = "ai-api-manage:v1"
+$targetPort = 8000
+$modelName = "gpt-4o-mini"
+$embeddingsApiKey = "demo-key-12345"
+
+# Confirm existing environment
+az containerapp env show `
+	--name $containerAppsEnvironment `
+	--resource-group $rg
+
+# Build and push app image to ACR
+cd aca-manage-python
+
+az acr build `
+	--resource-group $rg `
+	--registry $acrName `
+	--image $containerImage `
+	--file api/Dockerfile `
+	--no-logs `
+	--source-acr-auth-id [caller] `
+	api/
+
+$image = "$acrName.azurecr.io/$containerImage"
+
+# Create a new app directly from ACR image
+az containerapp create `
+	--name $appName `
+	--resource-group $rg `
+	--environment $containerAppsEnvironment `
+	--image $image `
+	--ingress external `
+	--target-port $targetPort `
+	--registry-server "$acrName.azurecr.io" `
+	--registry-identity system `
+	--system-assigned
+
+# Capture app principal ID
+$containerAppPrincipalId = az containerapp show `
+	--name $appName `
+	--resource-group $rg `
+	--query identity.principalId `
+	--output tsv
+
+# Get ACR resource ID scope
+$acrResourceId = az acr show `
+	--name $acrName `
+	--resource-group $rg `
+	--query id `
+	--output tsv
+
+# ABAC-enabled ACR: grant repository reader role for pull
+az role assignment create `
+	--assignee-object-id $containerAppPrincipalId `
+	--assignee-principal-type ServicePrincipal `
+	--role "Container Registry Repository Reader" `
+	--scope $acrResourceId
+
+az containerapp secret set `
+	--name $appName `
+	--resource-group $rg `
+	--secrets embeddings-api-key=$embeddingsApiKey
+
+# Configure Container App to use system-managed identity for ACR pulls
+az containerapp registry set `
+	--name $appName `
+	--resource-group $rg `
+	--server "$acrName.azurecr.io" `
+	--identity system
+
+az containerapp update `
+	--name $appName `
+	--resource-group $rg `
+	--set-env-vars MODEL_NAME=$modelName EMBEDDINGS_API_KEY=secretref:embeddings-api-key `
+	--image $image
+
+# Baseline checks
+az containerapp revision list `
+	--name $appName `
+	--resource-group $rg `
+	-o table
+
+$FQDN = az containerapp show `
+	--name $appName `
+	--resource-group $rg `
+	--query properties.configuration.ingress.fqdn `
+	-o tsv
+
+Write-Output $FQDN
+Invoke-RestMethod -Uri "https://$FQDN/health"
+Invoke-RestMethod -Uri "https://$FQDN/"
+
+Invoke-RestMethod -Uri "https://$FQDN/process" `
+	-Method Post `
+	-ContentType "text/plain" `
+	-Body (Get-Content -Raw document.txt)
+
+#########################################
+# Diagnose and fix: missing MODEL_NAME ##
+#########################################
+# Simulate a common mistake by removing the MODEL_NAME env var, then check app health and logs to see the impact
+az containerapp update `
+	--name $appName `
+	--resource-group $rg `
+	--remove-env-vars MODEL_NAME
+
+az containerapp revision list `
+	--name $appName `
+	--resource-group $rg `
+	-o table
+
+(Invoke-RestMethod -Uri "https://$FQDN/").model
+
+az containerapp show `
+	--name $appName `
+	--resource-group $rg `
+	--query "properties.template.containers[0].env" `
+	-o table
+
+az containerapp update `
+	--name $appName `
+	--resource-group $rg `
+	--set-env-vars MODEL_NAME=$modelName
+
+(Invoke-RestMethod -Uri "https://$FQDN/").model
+
+##################################################
+# Diagnose and fix: ingress target port mismatch #
+##################################################
+# Update app to listen on port 3000 instead of 8000, then check health and logs to see the impact
+az containerapp ingress update `
+	--name $appName `
+	--resource-group $rg `
+	--target-port 3000
+
+Invoke-RestMethod -Uri "https://$FQDN/health"
+
+az containerapp show `
+	--name $appName `
+	--resource-group $rg `
+	--query "properties.configuration.ingress" `
+	-o yaml
+
+az containerapp logs show `
+	--name $appName `
+	--resource-group $rg
+
+az containerapp ingress update `
+	--name $appName `
+	--resource-group $rg `
+	--target-port $targetPort
+
+Invoke-RestMethod -Uri "https://$FQDN/health"
+
+######################################################
+# Query Log Analytics for historical troubleshooting #
+######################################################
+# Get Log Analytics workspace ID from Container App environment
+$workspaceId = az containerapp env show `
+	--name $containerAppsEnvironment `
+	--resource-group $rg `
+	--query properties.appLogsConfiguration.logAnalyticsConfiguration.customerId `
+	-o tsv
+
+Write-Output "Workspace ID: $workspaceId"
+
+# Query recent console logs for the app
+az monitor log-analytics query `
+	-w $workspaceId `
+	--analytics-query "ContainerAppConsoleLogs_CL | where ContainerAppName_s == '$appName' | project TimeGenerated, Log_s | order by TimeGenerated desc | take 20" `
+	-o table
+
+# Query recent error logs for the app
+az monitor log-analytics query `
+	-w $workspaceId `
+	--analytics-query "ContainerAppConsoleLogs_CL | where ContainerAppName_s == '$appName' and Log_s contains 'error' | order by TimeGenerated desc | take 20" `
+	-o table
+
+# Final status view
+az containerapp revision list `
+	--name $appName `
+	--resource-group $rg `
+	--query "[].{name:name,active:properties.active,health:properties.healthState}" `
+	-o table

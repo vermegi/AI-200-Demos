@@ -1,0 +1,305 @@
+# Variables
+$userHash = "20260616"
+$rg = "rg-AI200-$userHash"
+$location = "francecentral"
+
+$cosmosName = "cosmos-rag-$userHash"
+$databaseName = "ragstore"
+$containerName = "chunks"
+
+# Existing container platform resources, reused for the AKS deployment.
+$acrName = "acr$userHash"
+$aksName = "aks-$userHash"
+$identityName = "id-cosmos-client-$userHash"
+
+cd 'C:\Users\gvermeiren\github\AI-200-Demos\4. Cosmos'
+
+# Use the subscription that will contain the Cosmos DB account.
+# az login
+# az account set --subscription "<subscription-id-or-name>"
+
+# Register the provider required by Cosmos DB.
+# az provider register --namespace Microsoft.DocumentDB
+
+az group show --name $rg
+
+# Create the serverless Azure Cosmos DB for NoSQL account.
+# This may take several minutes.
+az cosmosdb create `
+    --resource-group $rg `
+    --name $cosmosName `
+    --locations regionName=$location `
+    --capabilities EnableServerless `
+    --default-consistency-level Session
+
+# Create the database.
+az cosmosdb sql database create `
+    --resource-group $rg `
+    --account-name $cosmosName `
+    --name $databaseName
+
+# Create the container, partitioned by document ID.
+az cosmosdb sql container create `
+    --resource-group $rg `
+    --account-name $cosmosName `
+    --database-name $databaseName `
+    --name $containerName `
+    --partition-key-path "/documentId"
+
+# Verify the account, database, and container.
+az cosmosdb show `
+    --resource-group $rg `
+    --name $cosmosName `
+    --query provisioningState `
+    --output tsv
+
+az cosmosdb sql database show `
+    --resource-group $rg `
+    --account-name $cosmosName `
+    --name $databaseName `
+    --query name `
+    --output tsv
+
+az cosmosdb sql container show `
+    --resource-group $rg `
+    --account-name $cosmosName `
+    --database-name $databaseName `
+    --name $containerName `
+    --query name `
+    --output tsv
+
+# Configure Microsoft Entra ID access for the signed-in user.
+# The client uses DefaultAzureCredential, so no account keys are needed.
+$userObjectId = az ad signed-in-user show `
+    --query id `
+    --output tsv
+echo $userObjectId
+
+$userUpn = az ad signed-in-user show `
+    --query userPrincipalName `
+    --output tsv
+echo $userUpn
+
+$cosmosId = az cosmosdb show `
+    --resource-group $rg `
+    --name $cosmosName `
+    --query id `
+    --output tsv
+echo $cosmosId
+
+# Control plane: manage databases and containers.
+az role assignment create `
+    --assignee $userObjectId `
+    --scope $cosmosId `
+    --role "Contributor"
+
+# Data plane: read and write items in the container.
+az cosmosdb sql role assignment create `
+    --resource-group $rg `
+    --account-name $cosmosName `
+    --role-definition-name "Cosmos DB Built-in Data Contributor" `
+    --principal-id $userObjectId `
+    --scope $cosmosId
+
+# Verify both role assignments.
+az role assignment list `
+    --assignee $userObjectId `
+    --scope $cosmosId `
+    --role "Contributor" `
+    --output table
+
+az cosmosdb sql role assignment list `
+    --resource-group $rg `
+    --account-name $cosmosName `
+    --query "[?principalId=='$userObjectId']" `
+    --output table
+
+# Restrict network access to the current public IP address.
+$myIp = (Invoke-RestMethod -Uri "https://api.ipify.org?format=json").ip
+echo $myIp
+
+az cosmosdb update `
+    --resource-group $rg `
+    --name $cosmosName `
+    --ip-range-filter $myIp
+
+az cosmosdb show `
+    --resource-group $rg `
+    --name $cosmosName `
+    --query ipRules `
+    --output table
+
+
+
+# Retrieve the connection info. The client authenticates with Entra ID
+# (DefaultAzureCredential), so no account key is needed.
+$cosmosEndpoint = az cosmosdb show `
+    --resource-group $rg `
+    --name $cosmosName `
+    --query documentEndpoint `
+    --output tsv
+
+# Set the environment variables the client reads, instead of writing a .env file.
+echo $cosmosEndpoint
+echo $databaseName
+echo $containerName
+
+$env:COSMOS_ENDPOINT = $cosmosEndpoint
+$env:COSMOS_DATABASE = $databaseName
+$env:COSMOS_CONTAINER = $containerName
+
+Get-ChildItem Env:COSMOS_*
+
+cd "C:\Users\gvermeiren\github\AI-200-Demos\4. Cosmos\cosmosdb-build-query-python\client"
+
+# python -m venv labenv
+
+.\labenv\Scripts\Activate.ps1
+
+# python -m pip install -r requirements.txt
+
+python app.py
+
+# go to http://127.0.0.1:5000
+# Load sample chunks
+
+
+deactivate
+
+cd 'C:\Users\gvermeiren\github\AI-200-Demos\4. Cosmos'
+
+
+####################################################################
+# Containerize the client and deploy it to the existing AKS cluster.
+####################################################################
+
+# Confirm the ACR and AKS cluster created in the AKS demo still exist.
+az acr show --resource-group $rg --name $acrName --query name --output tsv
+az aks show --resource-group $rg --name $aksName --query name --output tsv
+
+# Build and push the client image with an ACR Task.
+# This uses the caller's existing ACR permissions; admin user credentials are not required.
+az acr build `
+    --registry $acrName `
+    --image cosmos-client:latest `
+    --file .\cosmosdb-build-query-python\client\Dockerfile `
+    --source-acr-auth-id [caller] `
+    .\cosmosdb-build-query-python\client\
+
+
+# Enable the OIDC issuer and workload identity add-on on the cluster.
+# The pod needs its own Entra ID identity to reach the Cosmos DB data plane.
+az aks update `
+    --resource-group $rg `
+    --name $aksName `
+    --enable-oidc-issuer `
+    --enable-workload-identity
+
+$oidcIssuer = az aks show `
+    --resource-group $rg `
+    --name $aksName `
+    --query oidcIssuerProfile.issuerUrl `
+    --output tsv
+echo $oidcIssuer
+
+# Create the user-assigned managed identity used by the client pod.
+az identity create `
+    --resource-group $rg `
+    --name $identityName `
+    --location $location
+
+$identityClientId = az identity show `
+    --resource-group $rg `
+    --name $identityName `
+    --query clientId `
+    --output tsv
+echo $identityClientId
+
+$identityPrincipalId = az identity show `
+    --resource-group $rg `
+    --name $identityName `
+    --query principalId `
+    --output tsv
+echo $identityPrincipalId
+
+# Federate the identity with the Kubernetes service account used by the deployment.
+az identity federated-credential create `
+    --resource-group $rg `
+    --identity-name $identityName `
+    --name "fc-cosmos-client" `
+    --issuer $oidcIssuer `
+    --subject "system:serviceaccount:default:cosmos-client-sa" `
+    --audience "api://AzureADTokenExchange"
+
+# Data plane: let the pod identity read and write items in the container.
+az cosmosdb sql role assignment create `
+    --resource-group $rg `
+    --account-name $cosmosName `
+    --role-definition-name "Cosmos DB Built-in Data Contributor" `
+    --principal-id $identityPrincipalId `
+    --scope $cosmosId
+
+az cosmosdb sql role assignment list `
+    --resource-group $rg `
+    --account-name $cosmosName `
+    --query "[?principalId=='$identityPrincipalId']" `
+    --output table
+
+# The firewall currently only allows the local IP address, which blocks the cluster.
+# Add the AKS outbound public IP so the pod can reach the account.
+$aksNodeRg = az aks show `
+    --resource-group $rg `
+    --name $aksName `
+    --query nodeResourceGroup `
+    --output tsv
+echo $aksNodeRg
+
+$aksOutboundIp = az network public-ip list `
+    --resource-group $aksNodeRg `
+    --query "[0].ipAddress" `
+    --output tsv
+echo $aksOutboundIp
+
+az cosmosdb update `
+    --resource-group $rg `
+    --name $cosmosName `
+    --ip-range-filter "$myIp,$aksOutboundIp"
+
+az cosmosdb show `
+    --resource-group $rg `
+    --name $cosmosName `
+    --query ipRules `
+    --output table
+
+
+# Create user-specific manifests without changing the templates.
+$templateConfigMapFile = ".\cosmosdb-build-query-python\k8s\configmap.yaml"
+$configMapFile = ".\cosmosdb-build-query-python\k8s\configmap-$userHash.yaml"
+(Get-Content $templateConfigMapFile -Raw).Replace("COSMOS_ENDPOINT_VALUE", $cosmosEndpoint) | Set-Content $configMapFile -NoNewline
+
+$templateServiceAccountFile = ".\cosmosdb-build-query-python\k8s\serviceaccount.yaml"
+$serviceAccountFile = ".\cosmosdb-build-query-python\k8s\serviceaccount-$userHash.yaml"
+(Get-Content $templateServiceAccountFile -Raw).Replace("MANAGED_IDENTITY_CLIENT_ID", $identityClientId) | Set-Content $serviceAccountFile -NoNewline
+
+$templateDeploymentFile = ".\cosmosdb-build-query-python\k8s\deployment.yaml"
+$deploymentFile = ".\cosmosdb-build-query-python\k8s\deployment-$userHash.yaml"
+(Get-Content $templateDeploymentFile -Raw).Replace("ACR_ENDPOINT", "$acrName.azurecr.io") | Set-Content $deploymentFile -NoNewline
+
+# Apply the ConfigMap, ServiceAccount, Deployment, and public LoadBalancer Service.
+kubectl apply --filename $configMapFile
+kubectl apply --filename $serviceAccountFile
+kubectl apply --filename $deploymentFile
+kubectl apply --filename .\cosmosdb-build-query-python\k8s\service.yaml
+
+# Verify rollout and wait for the public service IP.
+kubectl get deploy,svc,sa
+kubectl rollout status deployment/cosmos-client
+kubectl get service cosmos-client-service
+
+# Browse to http://external_IP and load the sample chunks.
+
+# Troubleshooting.
+kubectl get pods --selector app=cosmos-client
+kubectl logs --selector app=cosmos-client --tail 50
+kubectl describe deployment cosmos-client
+

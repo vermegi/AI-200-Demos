@@ -1,0 +1,47 @@
+# Quick task: build an image from the current local directory and push it to ACR.
+az acr build --registry myregistry --image inference-api:v1.0.0 .
+
+# Quick task: build an image directly from a Git repository without cloning it locally.
+az acr build --registry myregistry \
+	--image inference-api:v1.0.0 \
+	https://github.com/myorg/inference-api.git
+
+# Automatically triggered task: build on commits to the main branch of a Git repo.
+az acr task create \
+	--registry myregistry \
+	--name build-inference-api \
+	--image inference-api:{{.Run.ID}} \
+	--context https://github.com/myorg/inference-api.git#main \
+	--file Dockerfile \
+	--git-access-token $PAT
+
+# Scheduled task: run a nightly build every day at midnight UTC.
+az acr task create \
+	--registry myregistry \
+	--name nightly-build \
+	--image inference-api:nightly \
+	--context https://github.com/myorg/inference-api.git \
+	--schedule "0 0 * * *" \
+	--file Dockerfile \
+	--git-access-token $PAT
+
+# Multi-step task definition: build, push, and run tests from an ACR task YAML file.
+version: v1.1.0
+steps:
+	- build: -t {{.Run.Registry}}/inference-api:{{.Run.ID}} .
+	- push:
+		- {{.Run.Registry}}/inference-api:{{.Run.ID}}
+	- cmd: {{.Run.Registry}}/inference-api:{{.Run.ID}} python -m pytest tests/
+
+# Multi-step task: create the ACR task from the acr-task.yaml workflow definition.
+az acr task create \
+	--registry myregistry \
+	--name build-test-push \
+	--context https://github.com/myorg/inference-api.git \
+	--file acr-task.yaml \
+	--git-access-token $PAT
+
+# Run task: execute a command in an existing image to verify it starts and has the expected runtime.
+az acr run --registry myregistry \
+	--cmd 'inference-api:v1.0.0 python --version' \
+	/dev/null

@@ -1,0 +1,53 @@
+$userHash = "20260826"
+$rg = "rg-AI200-$userHash"
+$acrName = "acr$userHash"
+$location = "francecentral"
+
+# TODO: change ACR statement to use ABAC! 
+# Need to update next statements (in ALL following azcli files) then as well to assign the right permissions!
+
+# USE MCAPS ACCOUNT!
+az login
+
+# Create ACR in portal or with CLI
+az group create --name $rg --location $location
+az acr create --resource-group $rg --name $acrName --sku Basic --role-assignment-mode rbac-abac
+# show in portal: repositories
+
+$ACR_ID = az acr show --resource-group $rg --name $acrName --query id --output tsv
+echo $ACR_ID
+$MY_ID = az ad signed-in-user show --query id --output tsv
+echo $MY_ID
+
+az role assignment create `
+    --assignee $MY_ID `
+    --scope $ACR_ID `
+    --role "Container Registry Repository Reader"
+
+# needed to list repositories in ACR, not needed for pulling images
+az role assignment create `
+    --assignee $MY_ID `
+    --scope $ACR_ID `
+    --role "Container Registry Repository Catalog Lister"
+
+az role assignment create `
+    --assignee $MY_ID `
+    --scope $ACR_ID `
+    --role "Container Registry Repository Writer"
+
+# Make sure docker desktop is running for this one, otherwise docker login will fail
+az acr login --name $acrName
+docker images
+docker tag "myfirstazurewebapp:${userHash}-v1" "$acrName.azurecr.io/samples/myfirstazurewebapp:${userHash}-v1"  
+docker images
+docker push "$acrName.azurecr.io/samples/myfirstazurewebapp:${userHash}-v1"
+
+
+# Use ACR Task (ABAC)
+az acr build --image samples/fromtask:dev0.1 --registry $acrName --source-acr-auth-id [caller] --file Dockerfile .
+# Use ACR Task (non-ABAC)
+# az acr build --registry $acrName --image samples/fromtask:dev0.1 --file ./Dockerfile .
+# Show in portal Tasks - runs
+
+# Create a CRON job that runs a container from the hello-world image every day at 9 PM UTC
+az acr task create --name timertask --registry $acrName --cmd mcr.microsoft.com/hello-world --schedule "0 21 * * *" --context /dev/null

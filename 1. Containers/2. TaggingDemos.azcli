@@ -1,0 +1,47 @@
+# Semantic versioning examples
+inference-api:1.0.0    # Initial release
+inference-api:1.0.1    # Bug fix in preprocessing
+inference-api:1.1.0    # Added new model endpoint
+inference-api:2.0.0    # Breaking API change
+
+# Stable and unique tag combination
+inference-api:1        # Points to latest 1.x.x (stable tag)
+inference-api:1.1      # Points to latest 1.1.x (stable tag)
+inference-api:1.1.0    # Specific patch version (unique tag)
+
+# Unique tag examples
+inference-api:build-4567
+inference-api:abc123f
+inference-api:20260102-143022
+inference-api:v1.2.0-build4567-abc123f
+
+# ACR build with a unique run ID
+az acr build --registry myregistry \
+  --image inference-api:v1.2.0-{{.Run.ID}} .
+
+# Avoid latest in production
+image: myregistry.azurecr.io/inference-api:latest
+image: myregistry.azurecr.io/inference-api:v1.2.0
+
+# Lock and unlock deployed images
+az acr repository update \
+  --name myregistry \
+  --image inference-api:v1.2.0 \
+  --write-enabled false
+
+az acr repository update \
+  --name myregistry \
+  --image inference-api:v1.2.0 \
+  --write-enabled true
+
+# Clean up untagged images
+az acr run --registry myregistry \
+  --cmd "acr purge --filter 'inference-api:.*' --untagged --ago 30d" \
+  /dev/null
+
+az acr task create \
+  --registry myregistry \
+  --name cleanup-untagged \
+  --cmd "acr purge --filter '.*:.*' --untagged --ago 7d" \
+  --schedule "0 0 * * 0" \
+  --context /dev/null

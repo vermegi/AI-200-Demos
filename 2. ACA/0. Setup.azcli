@@ -1,0 +1,15 @@
+Expand-Archive `
+    -Path 'C:\Users\gvermeiren\github\AI-200-Demos\mslearn-azure-ai\downloads\python\aca-deploy-python.zip' `
+    -DestinationPath 'c:\Users\gvermeiren\github\AI-200-Demos\2. ACA\aca-deploy-python' `
+    -Force
+
+Expand-Archive `
+    -Path 'C:\Users\gvermeiren\github\AI-200-Demos\mslearn-azure-ai\downloads\python\aca-manage-python.zip' `
+    -DestinationPath 'c:\Users\gvermeiren\github\AI-200-Demos\2. ACA\aca-manage-python' `
+    -Force
+
+Expand-Archive `
+    -Path 'C:\Users\gvermeiren\github\AI-200-Demos\mslearn-azure-ai\downloads\python\aca-scale-python.zip' `
+    -DestinationPath 'c:\Users\gvermeiren\github\AI-200-Demos\2. ACA\aca-scale-python' `
+    -Force
+

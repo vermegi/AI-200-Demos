@@ -1,0 +1,187 @@
+# Variables
+$userHash = "20260616"
+$rg = "rg-AI200-$userHash"
+$location = "francecentral"
+$acrName = "acr$userHash"
+
+# Existing ACA environment (already deployed)
+$containerAppsEnvironment = "aca-env-demo"
+
+# New app and distinct image name for the scaling sample
+$appName = "agent-api-scale"
+$bootstrapImage = "mcr.microsoft.com/k8se/quickstart:latest"
+$containerImage = "agent-api-scale:v1"
+$targetPort = 8080
+$agentDefaultDelayMs = 500
+
+# Confirm existing environment
+az containerapp env show `
+    --name $containerAppsEnvironment `
+    --resource-group $rg
+
+# Build and push the scaling sample image to ACR
+cd ..
+cd aca-scale-python
+
+az acr build `
+    --resource-group $rg `
+    --registry $acrName `
+    --image $containerImage `
+    --file api/Dockerfile `
+    --no-logs `
+    --source-acr-auth-id [caller] `
+    api/
+
+$image = "$acrName.azurecr.io/$containerImage"
+
+# Create a new app with a public bootstrap image first.
+# This avoids the first-revision ACR unauthorized problem with ABAC-enabled ACR.
+az containerapp create `
+    --name $appName `
+    --resource-group $rg `
+    --environment $containerAppsEnvironment `
+    --image $bootstrapImage `
+    --ingress external `
+    --target-port 80
+
+# Enable system-assigned identity on the Container App
+az containerapp identity assign `
+    --name $appName `
+    --resource-group $rg `
+    --system-assigned
+
+# Capture the Container App managed identity principal ID
+$containerAppPrincipalId = az containerapp show `
+    --name $appName `
+    --resource-group $rg `
+    --query identity.principalId `
+    --output tsv
+
+# Get ACR resource ID for RBAC scope
+$acrResourceId = az acr show `
+    --name $acrName `
+    --resource-group $rg `
+    --query id `
+    --output tsv
+
+# ABAC-enabled ACR: grant pull rights with repository reader role
+az role assignment create `
+    --assignee-object-id $containerAppPrincipalId `
+    --assignee-principal-type ServicePrincipal `
+    --role "Container Registry Repository Reader" `
+    --scope $acrResourceId
+
+# Configure Container App to use system-managed identity for ACR pulls
+az containerapp registry set `
+    --name $appName `
+    --resource-group $rg `
+    --server "$acrName.azurecr.io" `
+    --identity system
+
+# Switch the app to the private image and set runtime config
+az containerapp ingress update `
+    --name $appName `
+    --resource-group $rg `
+    --target-port $targetPort
+
+az containerapp update `
+    --name $appName `
+    --resource-group $rg `
+    --image $image `
+    --set-env-vars AGENT_DEFAULT_DELAY_MS=$agentDefaultDelayMs
+
+# Baseline checks
+az containerapp revision list `
+    --name $appName `
+    --resource-group $rg `
+    -o table
+
+$FQDN = az containerapp show `
+    --name $appName `
+    --resource-group $rg `
+    --query properties.configuration.ingress.fqdn `
+    -o tsv
+
+$containerAppUrl = "https://$FQDN"
+
+Write-Output $FQDN
+Invoke-RestMethod -Uri "$containerAppUrl/health"
+Invoke-RestMethod -Uri "$containerAppUrl/"
+
+Invoke-RestMethod -Uri "$containerAppUrl/agent/process" `
+    -Method Post `
+    -ContentType "application/json" `
+    -Body '{"input":"hello","delayMs":500}'
+
+################################
+# Configure HTTP autoscaling   #
+################################
+az containerapp update `
+    --name $appName `
+    --resource-group $rg `
+    --min-replicas 0 `
+    --max-replicas 10 `
+    --scale-rule-name http-scaling `
+    --scale-rule-type http `
+    --scale-rule-http-concurrency 10
+
+az containerapp show `
+    --name $appName `
+    --resource-group $rg `
+    --query "properties.template.scale"
+
+#########################################################
+# Prepare local env vars for the dashboard client app   #
+#########################################################
+$env:RESOURCE_GROUP = $rg
+$env:CONTAINER_APP_NAME = $appName
+$env:CONTAINER_APP_URL = $containerAppUrl
+
+#############################################
+# Generate load and observe scaling locally #
+#############################################
+cd client
+
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python app.py
+
+# Open http://127.0.0.1:5000
+# Use the dashboard to start load and refresh revisions/replicas.
+
+#################################
+# Configure scale rules via YAML #
+#################################
+cd ..
+
+az containerapp show `
+    --name $appName `
+    --resource-group $rg `
+    --output yaml > app-config.yaml
+
+# Edit app-config.yaml under properties.template.scale so it looks like:
+# scale:
+#   cooldownPeriod: 200
+#   maxReplicas: 5
+#   minReplicas: 1
+#   pollingInterval: 30
+
+az containerapp update `
+    --name $appName `
+    --resource-group $rg `
+    --yaml app-config.yaml
+
+az containerapp show `
+    --name $appName `
+    --resource-group $rg `
+    --query "properties.template.scale"
+
+#################################
+# Optional system scaling logs  #
+#################################
+az containerapp logs show `
+    --name $appName `
+    --resource-group $rg `
+    --type system `
+    --tail 50

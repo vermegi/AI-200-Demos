@@ -1,0 +1,4 @@
+Expand-Archive `
+    -Path 'C:\Users\gvermeiren\github\AI-200-Demos\mslearn-azure-ai\downloads\python\cosmosdb-build-query-python.zip' `
+    -DestinationPath 'c:\Users\gvermeiren\github\AI-200-Demos\4. Cosmos\cosmosdb-build-query-python' `
+    -Force

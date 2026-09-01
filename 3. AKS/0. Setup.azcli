@@ -1,0 +1,14 @@
+Expand-Archive `
+    -Path 'C:\Users\gvermeiren\github\AI-200-Demos\mslearn-azure-ai\downloads\python\aks-deploy-python.zip' `
+    -DestinationPath 'c:\Users\gvermeiren\github\AI-200-Demos\3. AKS\aks-deploy-python' `
+    -Force
+
+Expand-Archive `
+    -Path 'C:\Users\gvermeiren\github\AI-200-Demos\mslearn-azure-ai\downloads\python\aks-configure-python.zip' `
+    -DestinationPath 'c:\Users\gvermeiren\github\AI-200-Demos\3. AKS\aks-configure-python' `
+    -Force
+
+Expand-Archive `
+    -Path 'C:\Users\gvermeiren\github\AI-200-Demos\mslearn-azure-ai\downloads\python\aks-troubleshoot-python.zip' `
+    -DestinationPath 'c:\Users\gvermeiren\github\AI-200-Demos\3. AKS\aks-troubleshoot-python' `
+    -Force

@@ -1,0 +1,115 @@
+# Create a Container App with HTTP scaling rule
+az containerapp create \
+  --name order-api \
+  --resource-group rg-ecommerce \
+  --environment my-environment \
+  --image myregistry.azurecr.io/order-api:v1 \
+  --min-replicas 1 \
+  --max-replicas 10 \
+  --scale-rule-name http-scaling \
+  --scale-rule-type http \
+  --scale-rule-http-concurrency 50
+
+# YAML configuration for the same Container App with both HTTP and custom CPU scaling rules
+# Code fragment - focus on scale rules configuration
+scale:
+  minReplicas: 1
+  maxReplicas: 20
+  rules:
+    - name: http-scaling
+      http:
+        metadata:
+          concurrentRequests: "100"
+    - name: cpu-scaling
+      custom:
+        type: cpu
+        metadata:
+          type: Utilization
+          value: "70"
+
+# Create a Container App with a Service Bus queue scaling rule (KEDA)
+az containerapp create \
+  --name order-processor \
+  --resource-group rg-ecommerce \
+  --environment my-environment \
+  --image myregistry.azurecr.io/order-processor:v1 \
+  --min-replicas 0 \
+  --max-replicas 30 \
+  --secrets "sb-connection=<SERVICE_BUS_CONNECTION_STRING>" \
+  --scale-rule-name servicebus-scaling \
+  --scale-rule-type azure-servicebus \
+  --scale-rule-metadata "queueName=orders" \
+                        "namespace=sb-ecommerce" \
+                        "messageCount=5" \
+  --scale-rule-auth "connection=sb-connection"
+
+# YAML configuration for the same Container App with an Event Hubs scaler (KEDA)
+# Code fragment - focus on Event Hubs scaler configuration
+scale:
+  minReplicas: 0
+  maxReplicas: 32
+  rules:
+    - name: eventhubs-scaling
+      custom:
+        type: azure-eventhub
+        metadata:
+          consumerGroup: "$Default"
+          unprocessedEventThreshold: "64"
+          checkpointStrategy: "blobMetadata"
+        auth:
+          - secretRef: eh-connection
+            triggerParameter: connection
+
+# Create a Container App with a custom Azure Queue Storage scaling rule and authentication (KEDA)
+az containerapp create \
+  --name queue-processor \
+  --resource-group rg-ecommerce \
+  --environment my-environment \
+  --image myregistry.azurecr.io/queue-processor:v1 \
+  --user-assigned <MANAGED_IDENTITY_RESOURCE_ID> \
+  --min-replicas 0 \
+  --max-replicas 20 \
+  --scale-rule-name storage-queue-scaling \
+  --scale-rule-type azure-queue \
+  --scale-rule-metadata "accountName=stecommerce" \
+                        "queueName=inventory-updates" \
+                        "queueLength=10" \
+  --scale-rule-identity <MANAGED_IDENTITY_RESOURCE_ID>
+
+# YAML configuration for the same Container App with a custom Kafka scaler and SASL authentication (KEDA)
+# Code fragment - focus on Kafka scaler configuration
+scale:
+  minReplicas: 1
+  maxReplicas: 50
+  rules:
+    - name: kafka-scaling
+      custom:
+        type: kafka
+        metadata:
+          bootstrapServers: "kafka-broker:9092"
+          consumerGroup: "order-consumers"
+          topic: "orders"
+          lagThreshold: "100"
+        auth:
+          - secretRef: kafka-credentials
+            triggerParameter: sasl
+
+# YAML configuration for a Container App with a cron-based scaling rule (KEDA)
+# Code fragment - focus on cron scaler configuration
+scale:
+  minReplicas: 0
+  maxReplicas: 20
+  rules:
+    - name: business-hours
+      custom:
+        type: cron
+        metadata:
+          timezone: "America/New_York"
+          start: "0 8 * * 1-5"
+          end: "0 18 * * 1-5"
+          desiredReplicas: "5"
+    - name: http-scaling
+      http:
+        metadata:
+          concurrentRequests: "50"
+

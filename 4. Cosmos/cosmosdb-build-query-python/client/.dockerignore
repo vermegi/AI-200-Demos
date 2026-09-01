@@ -1,0 +1,7 @@
+labenv/
+__pycache__/
+*.pyc
+.env
+k8s/
+Dockerfile
+.dockerignore

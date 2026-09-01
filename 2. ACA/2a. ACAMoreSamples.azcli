@@ -1,0 +1,62 @@
+# Create a new revision
+az containerapp update \
+  --name <app-name> \
+  --resource-group <resource-group> \
+  --image <registry>/<repo>@sha256:<digest>
+
+# double check settings
+az containerapp show \
+  --name <app-name> \
+  --resource-group <resource-group> \
+  --query properties.template.containers
+
+# list, investigate and manage revisions
+az containerapp revision list \
+  --name <app-name> \
+  --resource-group <resource-group> \
+  -o table
+
+az containerapp revision show \
+  --name <app-name> \
+  --resource-group <resource-group> \
+  --revision <revision-name>
+
+az containerapp revision deactivate \
+  --name <app-name> \
+  --resource-group <resource-group> \
+  --revision <revision-name>
+
+# start and stop a container app
+az containerapp stop \
+  --name <app-name> \
+  --resource-group <resource-group>
+
+az containerapp start \
+  --name <app-name> \
+  --resource-group <resource-group>
+
+# restart an app
+az containerapp restart \
+  --name <app-name> \
+  --resource-group <resource-group>
+
+# Diagnose a failing revision
+az containerapp revision list \
+  --name <app-name> \
+  --resource-group <resource-group> \
+  --query "[].{name:name,active:properties.active,health:properties.healthState}" \
+  -o table
+
+# monitor logs
+az containerapp logs show \
+  --name <app-name> \
+  --resource-group <resource-group> \
+  --follow
+
+# update CPU and memory
+az containerapp update \
+  --name <app-name> \
+  --resource-group <resource-group> \
+  --cpu <cores> \
+  --memory <size>
+

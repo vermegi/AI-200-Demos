@@ -1,0 +1,67 @@
+# Variables
+$userHash = "20260616"
+$rg = "rg-AI200-$userHash"
+$location = "francecentral"
+
+$acrName = "acr$userHash"
+$aksName = "aks-$userHash"
+$foundryName = "foundry-resource-$userHash"
+$foundryProjectName = "foundry-project-$userHash"
+
+cd 'C:\Users\gvermeiren\github\AI-200-Demos\3. AKS'
+
+# Build and push the API image with an ACR Task.
+# This uses the caller's existing ACR permissions; admin user credentials are not required.
+az acr build `
+	--registry $acrName `
+	--image aks-config-api:latest `
+	--file .\aks-configure-python\api\Dockerfile `
+	--source-acr-auth-id [caller] `
+	.\aks-configure-python\api\
+
+$templateDeploymentFile = ".\\aks-configure-python\\k8s\\deployment.yaml"
+$deploymentFile = ".\\aks-configure-python\\k8s\\deployment-$userHash.yaml"
+(Get-Content $templateDeploymentFile -Raw).Replace("ACR_ENDPOINT", "$acrName.azurecr.io") | Set-Content $deploymentFile -NoNewline
+
+# Make sure kubectl targets the AKS cluster for this exercise.
+az aks get-credentials `
+	--resource-group $rg `
+	--name $aksName
+
+# potentially execute
+az aks start `
+  --resource-group $rg `
+  --name $aksName
+
+# Apply the manifests to AKS.
+kubectl apply --filename .\\aks-configure-python\\k8s\\configmap.yaml
+kubectl apply --filename .\\aks-configure-python\\k8s\\secrets.yaml
+kubectl apply --filename .\\aks-configure-python\\k8s\\pvc.yaml
+kubectl apply --filename $deploymentFile
+kubectl apply --filename .\\aks-configure-python\\k8s\\service.yaml
+
+# Verify rollout and wait for the public service IP.
+kubectl get configmap,secret,pvc,deploy,svc
+kubectl rollout status deployment/aks-config-api
+kubectl get service aks-config-api-service --watch
+
+# Read the LoadBalancer IP and write it to the client .env as API_ENDPOINT.
+$apiExternalIp = kubectl get service aks-config-api-service `
+	--output jsonpath="{.status.loadBalancer.ingress[0].ip}"
+echo $apiExternalIp
+
+Set-Content -Path .\\aks-configure-python\\client\\.env -Value "API_ENDPOINT=http://$apiExternalIp"
+
+# NEW TERMINAL
+
+cd 'C:\Users\gvermeiren\github\AI-200-Demos\3. AKS\aks-configure-python\client'
+
+# python -m venv labenv
+
+.\labenv\Scripts\Activate.ps1
+
+# python -m pip install -r requirements.txt
+
+python main.py
+
+deactivate
