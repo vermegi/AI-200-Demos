@@ -21,10 +21,21 @@ var resourceGroupName = 'rg-AI200-${userHash}'
 var registryName = 'acr${userHash}'
 var appServicePlanName = 'plan-docprocessor-${userHash}'
 var webAppName = 'app-docprocessor-${userHash}'
+var containerAppsEnvironmentName = 'aca-env-demo'
+var containerAppName = 'ai-api'
+var logAnalyticsWorkspaceName = 'log-ai200-${userHash}'
 
 resource resourceGroup 'Microsoft.Resources/resourceGroups@2025-04-01' = {
   name: resourceGroupName
   location: location
+}
+
+module logAnalytics './log-analytics.bicep' = {
+  scope: az.resourceGroup(resourceGroup.name)
+  params: {
+    name: logAnalyticsWorkspaceName
+    location: location
+  }
 }
 
 module appServicePlan './app-service-plan.bicep' = {
@@ -44,6 +55,7 @@ module webApp './web-app.bicep' = {
     location: location
     serverFarmResourceId: appServicePlan.outputs.resourceId
     linuxFxVersion: placeholderContainerImage
+    logAnalyticsWorkspaceName: logAnalytics.outputs.name
   }
 }
 
@@ -54,6 +66,7 @@ module privateNetworking './private-network.bicep' = {
     userHash: userHash
     webAppResourceId: webApp.outputs.resourceId
     webAppDefaultHostname: webApp.outputs.defaultHostname
+    logAnalyticsWorkspaceName: logAnalytics.outputs.name
   }
 }
 
@@ -66,6 +79,19 @@ module registry './container-registry.bicep' = {
     acrSku: 'Basic'
     userPrincipalId: principalId
     webAppPrincipalId: webApp.outputs.systemAssignedMIPrincipalId
+    logAnalyticsWorkspaceName: logAnalytics.outputs.name
+  }
+}
+
+// Deployed after the registry so the container app identity can be granted repository access here.
+module containerApps './container-apps.bicep' = {
+  scope: az.resourceGroup(resourceGroup.name)
+  params: {
+    environmentName: containerAppsEnvironmentName
+    containerAppName: containerAppName
+    location: location
+    registryName: registry.outputs.name
+    logAnalyticsWorkspaceName: logAnalytics.outputs.name
   }
 }
 
@@ -82,3 +108,8 @@ output frontDoorProfile string = privateNetworking.outputs.frontDoorProfile
 output frontDoorEndpoint string = privateNetworking.outputs.frontDoorEndpoint
 output frontDoorHostname string = privateNetworking.outputs.frontDoorHostname
 output frontDoorUrl string = privateNetworking.outputs.frontDoorUrl
+output containerAppsEnvironment string = containerApps.outputs.environmentName
+output containerApp string = containerApps.outputs.containerAppName
+output containerAppUrl string = containerApps.outputs.containerAppUrl
+output containerAppPrincipalId string = containerApps.outputs.containerAppPrincipalId
+output logAnalyticsWorkspace string = logAnalytics.outputs.name

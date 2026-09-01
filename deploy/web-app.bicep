@@ -14,6 +14,15 @@ param serverFarmResourceId string
 @description('Container image reference used by the Linux web app.')
 param linuxFxVersion string
 
+@description('Name of the shared Log Analytics workspace collecting web app diagnostics.')
+@minLength(4)
+@maxLength(63)
+param logAnalyticsWorkspaceName string
+
+resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2025-02-01' existing = {
+  name: logAnalyticsWorkspaceName
+}
+
 resource webApp 'Microsoft.Web/sites@2024-11-01' = {
   name: name
   location: location
@@ -54,6 +63,44 @@ resource logs 'Microsoft.Web/sites/config@2024-11-01' = {
         retentionInMb: 35
       }
     }
+  }
+}
+
+resource webAppDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
+  scope: webApp
+  name: 'send-to-log-analytics'
+  properties: {
+    workspaceId: logAnalyticsWorkspace.id
+    logs: [
+      {
+        category: 'AppServiceHTTPLogs'
+        enabled: true
+      }
+      {
+        category: 'AppServiceConsoleLogs'
+        enabled: true
+      }
+      {
+        category: 'AppServiceAppLogs'
+        enabled: true
+      }
+      {
+        category: 'AppServicePlatformLogs'
+        enabled: true
+      }
+      {
+        category: 'AppServiceAuditLogs'
+        enabled: true
+      }
+      {
+        category: 'AppServiceIPSecAuditLogs'
+        enabled: true
+      }
+      {
+        category: 'AppServiceAuthenticationLogs'
+        enabled: true
+      }
+    ]
   }
 }
 

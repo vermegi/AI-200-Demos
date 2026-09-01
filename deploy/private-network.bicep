@@ -12,6 +12,15 @@ param webAppResourceId string
 @description('Default host name of the web app used by Azure Front Door.')
 param webAppDefaultHostname string
 
+@description('Name of the shared Log Analytics workspace collecting network diagnostics.')
+@minLength(4)
+@maxLength(63)
+param logAnalyticsWorkspaceName string
+
+resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2025-02-01' existing = {
+  name: logAnalyticsWorkspaceName
+}
+
 var virtualNetworkName = 'vnet-ai200-${userHash}'
 var frontDoorProfileName = 'afd-docprocessor-${userHash}'
 var frontDoorEndpointName = 'afd-docprocessor-${userHash}-${uniqueString(subscription().id, userHash)}'
@@ -124,6 +133,34 @@ resource frontDoorRoute 'Microsoft.Cdn/profiles/afdEndpoints/routes@2025-06-01' 
     forwardingProtocol: 'HttpsOnly'
     httpsRedirect: 'Enabled'
     linkToDefaultDomain: 'Enabled'
+  }
+}
+
+resource virtualNetworkDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
+  scope: virtualNetwork
+  name: 'send-to-log-analytics'
+  properties: {
+    workspaceId: logAnalyticsWorkspace.id
+    logs: [
+      {
+        categoryGroup: 'allLogs'
+        enabled: true
+      }
+    ]
+  }
+}
+
+resource frontDoorDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
+  scope: frontDoorProfile
+  name: 'send-to-log-analytics'
+  properties: {
+    workspaceId: logAnalyticsWorkspace.id
+    logs: [
+      {
+        categoryGroup: 'allLogs'
+        enabled: true
+      }
+    ]
   }
 }
 

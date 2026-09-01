@@ -7,11 +7,6 @@ $acrName = "acr$userHash"
 $containerAppsEnvironment = "aca-env-demo"
 
 # Explore Container Apps environments
-az containerapp env create `
-	--name $containerAppsEnvironment `
-	--resource-group $rg `
-	--location $location
-
 az containerapp env show `
 	--name $containerAppsEnvironment `
 	--resource-group $rg
@@ -33,16 +28,6 @@ az containerapp up `
 
 $appName = "ai-api"
 
-
-# Deploy with az containerapp create
-az containerapp create `
-	--name $appName `
-	--resource-group $rg `
-	--environment $containerAppsEnvironment `
-	--image $image `
-	--ingress external `
-	--target-port 80
-
 $container_image="ai-api:v1"
 
 cd aca-deploy-python
@@ -57,41 +42,6 @@ az acr build `
 	api/
 
 $updatedImage = "$acrName.azurecr.io/$container_image"
-
-
-# Enable system-assigned managed identity on the Container App
-az containerapp identity assign `
-	--name $appName `
-	--resource-group $rg `
-	--system-assigned
-
-# Capture the Container App managed identity principal ID
-$containerAppPrincipalId = az containerapp show `
-	--name $appName `
-	--resource-group $rg `
-	--query identity.principalId `
-	--output tsv
-
-# Get ACR resource ID for RBAC scope
-$acrResourceId = az acr show `
-	--name $acrName `
-	--resource-group $rg `
-	--query id `
-	--output tsv
-
-# ABAC-enabled ACR: grant pull rights with repository reader role
-az role assignment create `
-	--assignee-object-id $containerAppPrincipalId `
-	--assignee-principal-ty`pe ServicePrincipal `
-	--role "Container Registry Repository Reader" `
-	--scope $acrResourceId
-
-# Configure Container App to use system-managed identity for ACR pulls
-az containerapp registry set `
-	--name $appName `
-	--resource-group $rg `
-	--server "$acrName.azurecr.io" `
-	--identity system
 
 az containerapp ingress update `
 	--name $appName `

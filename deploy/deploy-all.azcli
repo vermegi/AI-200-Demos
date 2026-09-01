@@ -28,6 +28,11 @@ $appPrincipalId = $outputs.webAppPrincipalId.value
 $frontDoorProfile = $outputs.frontDoorProfile.value
 $frontDoorEndpoint = $outputs.frontDoorEndpoint.value
 $frontDoorUrl = $outputs.frontDoorUrl.value
+$containerAppsEnvironment = $outputs.containerAppsEnvironment.value
+$containerAppName = $outputs.containerApp.value
+$containerAppUrl = $outputs.containerAppUrl.value
+$containerAppPrincipalId = $outputs.containerAppPrincipalId.value
+$logAnalyticsWorkspace = $outputs.logAnalyticsWorkspace.value
 
 echo $rg
 echo $acrName
@@ -40,6 +45,11 @@ echo $appPrincipalId
 echo $frontDoorProfile
 echo $frontDoorEndpoint
 echo $frontDoorUrl
+echo $containerAppsEnvironment
+echo $containerAppName
+echo $containerAppUrl
+echo $containerAppPrincipalId
+echo $logAnalyticsWorkspace
 
 
 $privateEndpointConnectionName = az network private-endpoint-connection list `
