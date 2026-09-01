@@ -1,0 +1,84 @@
+targetScope = 'subscription'
+
+@description('Unique user hash used to derive the resource group, container registry, app service plan and web app names.')
+@minLength(2)
+@maxLength(42)
+param userHash string
+
+@description('Azure region for the resource group and container registry.')
+param location string = 'francecentral'
+
+@description('Principal ID that receives repository permissions on the container registry. Leave empty to skip role assignments.')
+param principalId string = ''
+
+@description('SKU name of the App Service plan hosting the container web app.')
+param appServicePlanSku string = 'P0v3'
+
+@description('Placeholder container image used until the ACR image is built and pushed from the CLI script.')
+param placeholderContainerImage string = 'DOCKER|mcr.microsoft.com/appsvc/staticsite:latest'
+
+var resourceGroupName = 'rg-AI200-${userHash}'
+var registryName = 'acr${userHash}'
+var appServicePlanName = 'plan-docprocessor-${userHash}'
+var webAppName = 'app-docprocessor-${userHash}'
+
+resource resourceGroup 'Microsoft.Resources/resourceGroups@2025-04-01' = {
+  name: resourceGroupName
+  location: location
+}
+
+module appServicePlan './app-service-plan.bicep' = {
+  scope: az.resourceGroup(resourceGroup.name)
+  params: {
+    name: appServicePlanName
+    location: location
+    skuName: appServicePlanSku
+    skuCapacity: 1
+  }
+}
+
+module webApp './web-app.bicep' = {
+  scope: az.resourceGroup(resourceGroup.name)
+  params: {
+    name: webAppName
+    location: location
+    serverFarmResourceId: appServicePlan.outputs.resourceId
+    linuxFxVersion: placeholderContainerImage
+  }
+}
+
+module privateNetworking './private-network.bicep' = {
+  scope: resourceGroup
+  params: {
+    location: location
+    userHash: userHash
+    webAppResourceId: webApp.outputs.resourceId
+    webAppDefaultHostname: webApp.outputs.defaultHostname
+  }
+}
+
+// Deployed after the web app so its system-assigned identity can be granted repository access here.
+module registry './container-registry.bicep' = {
+  scope: az.resourceGroup(resourceGroup.name)
+  params: {
+    name: registryName
+    location: location
+    acrSku: 'Basic'
+    userPrincipalId: principalId
+    webAppPrincipalId: webApp.outputs.systemAssignedMIPrincipalId
+  }
+}
+
+output resourceGroup string = resourceGroup.name
+output registry string = registry.outputs.name
+output registryId string = registry.outputs.resourceId
+output loginServer string = registry.outputs.loginServer
+output appServicePlan string = appServicePlan.outputs.name
+output webApp string = webApp.outputs.name
+output webAppUrl string = 'https://${webApp.outputs.defaultHostname}'
+output webAppPrincipalId string = webApp.outputs.systemAssignedMIPrincipalId
+output virtualNetwork string = privateNetworking.outputs.virtualNetwork
+output frontDoorProfile string = privateNetworking.outputs.frontDoorProfile
+output frontDoorEndpoint string = privateNetworking.outputs.frontDoorEndpoint
+output frontDoorHostname string = privateNetworking.outputs.frontDoorHostname
+output frontDoorUrl string = privateNetworking.outputs.frontDoorUrl
