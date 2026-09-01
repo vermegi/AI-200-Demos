@@ -1,3 +1,4 @@
+# DO NOT EXECUTE
 # Create a Container App named "order-api" with 0.5 CPU, 1.0Gi memory, and scaling between 2 and 20 replicas.
 az containerapp create \
   --name order-api \

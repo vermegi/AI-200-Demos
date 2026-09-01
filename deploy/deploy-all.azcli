@@ -36,6 +36,9 @@ $containerAppPrincipalId = $outputs.containerAppPrincipalId.value
 $manageContainerApp = $outputs.manageContainerApp.value
 $manageContainerAppUrl = $outputs.manageContainerAppUrl.value
 $manageContainerAppPrincipalId = $outputs.manageContainerAppPrincipalId.value
+$scaleContainerApp = $outputs.scaleContainerApp.value
+$scaleContainerAppUrl = $outputs.scaleContainerAppUrl.value
+$scaleContainerAppPrincipalId = $outputs.scaleContainerAppPrincipalId.value
 $logAnalyticsWorkspace = $outputs.logAnalyticsWorkspace.value
 
 echo $rg
@@ -56,6 +59,9 @@ echo $containerAppPrincipalId
 echo $manageContainerApp
 echo $manageContainerAppUrl
 echo $manageContainerAppPrincipalId
+echo $scaleContainerApp
+echo $scaleContainerAppUrl
+echo $scaleContainerAppPrincipalId
 echo $logAnalyticsWorkspace
 
 

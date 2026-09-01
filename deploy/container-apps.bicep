@@ -37,6 +37,17 @@ param modelName string = 'gpt-4o-mini'
 @secure()
 param embeddingsApiKey string
 
+@description('Name of the container app used for the scaling demo.')
+@minLength(2)
+@maxLength(32)
+param scaleContainerAppName string
+
+@description('Container port the scaling demo image listens on once it is deployed.')
+param scaleTargetPort int = 8080
+
+@description('Simulated agent processing delay in milliseconds for the scaling demo.')
+param agentDefaultDelayMs int = 500
+
 @description('Name of the shared Log Analytics workspace.')
 @minLength(4)
 @maxLength(63)
@@ -182,6 +193,59 @@ resource manageContainerAppRoleAssignments 'Microsoft.Authorization/roleAssignme
   }
 }]
 
+// Scale rules are configured from the demo script, so only the default scale bounds are set here.
+resource scaleContainerApp 'Microsoft.App/containerApps@2025-01-01' = {
+  name: scaleContainerAppName
+  location: location
+  identity: {
+    type: 'SystemAssigned'
+  }
+  properties: {
+    environmentId: managedEnvironment.id
+    configuration: {
+      ingress: {
+        external: true
+        targetPort: scaleTargetPort
+        transport: 'auto'
+      }
+      registries: [
+        {
+          server: registry.properties.loginServer
+          identity: 'system'
+        }
+      ]
+    }
+    template: {
+      containers: [
+        {
+          name: scaleContainerAppName
+          image: containerImage
+          env: [
+            {
+              name: 'AGENT_DEFAULT_DELAY_MS'
+              value: string(agentDefaultDelayMs)
+            }
+          ]
+        }
+      ]
+      scale: {
+        minReplicas: 0
+        maxReplicas: 10
+      }
+    }
+  }
+}
+
+resource scaleContainerAppRoleAssignments 'Microsoft.Authorization/roleAssignments@2022-04-01' = [for roleId in containerAppRoleIds: {
+  scope: registry
+  name: guid(registry.id, scaleContainerApp.id, roleId)
+  properties: {
+    principalId: scaleContainerApp.identity.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roleId)
+  }
+}]
+
 resource environmentDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
   scope: managedEnvironment
   name: 'send-to-log-analytics'
@@ -206,3 +270,7 @@ output manageContainerAppName string = manageContainerApp.name
 output manageContainerAppFqdn string = manageContainerApp.properties.configuration.ingress.fqdn
 output manageContainerAppUrl string = 'https://${manageContainerApp.properties.configuration.ingress.fqdn}'
 output manageContainerAppPrincipalId string = manageContainerApp.identity.principalId
+output scaleContainerAppName string = scaleContainerApp.name
+output scaleContainerAppFqdn string = scaleContainerApp.properties.configuration.ingress.fqdn
+output scaleContainerAppUrl string = 'https://${scaleContainerApp.properties.configuration.ingress.fqdn}'
+output scaleContainerAppPrincipalId string = scaleContainerApp.identity.principalId

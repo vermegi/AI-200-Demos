@@ -28,6 +28,7 @@ var webAppName = 'app-docprocessor-${userHash}'
 var containerAppsEnvironmentName = 'aca-env-demo'
 var containerAppName = 'ai-api'
 var manageContainerAppName = 'ai-api-manage'
+var scaleContainerAppName = 'agent-api-scale'
 var logAnalyticsWorkspaceName = 'log-ai200-${userHash}'
 
 resource resourceGroup 'Microsoft.Resources/resourceGroups@2025-04-01' = {
@@ -95,6 +96,7 @@ module containerApps './container-apps.bicep' = {
     environmentName: containerAppsEnvironmentName
     containerAppName: containerAppName
     manageContainerAppName: manageContainerAppName
+    scaleContainerAppName: scaleContainerAppName
     embeddingsApiKey: embeddingsApiKey
     location: location
     registryName: registry.outputs.name
@@ -122,4 +124,7 @@ output containerAppPrincipalId string = containerApps.outputs.containerAppPrinci
 output manageContainerApp string = containerApps.outputs.manageContainerAppName
 output manageContainerAppUrl string = containerApps.outputs.manageContainerAppUrl
 output manageContainerAppPrincipalId string = containerApps.outputs.manageContainerAppPrincipalId
+output scaleContainerApp string = containerApps.outputs.scaleContainerAppName
+output scaleContainerAppUrl string = containerApps.outputs.scaleContainerAppUrl
+output scaleContainerAppPrincipalId string = containerApps.outputs.scaleContainerAppPrincipalId
 output logAnalyticsWorkspace string = logAnalytics.outputs.name
