@@ -40,6 +40,12 @@ $scaleContainerApp = $outputs.scaleContainerApp.value
 $scaleContainerAppUrl = $outputs.scaleContainerAppUrl.value
 $scaleContainerAppPrincipalId = $outputs.scaleContainerAppPrincipalId.value
 $logAnalyticsWorkspace = $outputs.logAnalyticsWorkspace.value
+$foundryAccount = $outputs.foundryAccount.value
+$foundryEndpoint = $outputs.foundryEndpoint.value
+$foundryProject = $outputs.foundryProject.value
+$foundryModelDeployment = $outputs.foundryModelDeployment.value
+$aksCluster = $outputs.aksCluster.value
+$aksKubeletObjectId = $outputs.aksKubeletObjectId.value
 
 echo $rg
 echo $acrName
@@ -63,6 +69,12 @@ echo $scaleContainerApp
 echo $scaleContainerAppUrl
 echo $scaleContainerAppPrincipalId
 echo $logAnalyticsWorkspace
+echo $foundryAccount
+echo $foundryEndpoint
+echo $foundryProject
+echo $foundryModelDeployment
+echo $aksCluster
+echo $aksKubeletObjectId
 
 
 $privateEndpointConnectionName = az network private-endpoint-connection list `

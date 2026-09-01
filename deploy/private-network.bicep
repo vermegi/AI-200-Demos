@@ -25,6 +25,29 @@ var virtualNetworkName = 'vnet-ai200-${userHash}'
 var frontDoorProfileName = 'afd-docprocessor-${userHash}'
 var frontDoorEndpointName = 'afd-docprocessor-${userHash}-${uniqueString(subscription().id, userHash)}'
 
+// Owning this NSG keeps the subnet compliant, so the platform policy does not attach one that blocks load balancer ingress.
+resource aksNetworkSecurityGroup 'Microsoft.Network/networkSecurityGroups@2025-01-01' = {
+  name: 'nsg-aks-${userHash}'
+  location: location
+  properties: {
+    securityRules: [
+      {
+        name: 'AllowHttpInbound'
+        properties: {
+          priority: 100
+          direction: 'Inbound'
+          access: 'Allow'
+          protocol: 'Tcp'
+          sourceAddressPrefix: 'Internet'
+          sourcePortRange: '*'
+          destinationAddressPrefix: '*'
+          destinationPortRange: '80'
+        }
+      }
+    ]
+  }
+}
+
 resource virtualNetwork 'Microsoft.Network/virtualNetworks@2025-01-01' = {
   name: virtualNetworkName
   location: location
@@ -42,11 +65,13 @@ resource virtualNetwork 'Microsoft.Network/virtualNetworks@2025-01-01' = {
           privateEndpointNetworkPolicies: 'Disabled'
         }
       }
-      // This address range is reserved for the planned AKS subnet.
       {
         name: 'aks'
         properties: {
           addressPrefix: '10.16.0.0/12'
+          networkSecurityGroup: {
+            id: aksNetworkSecurityGroup.id
+          }
         }
       }
     ]
@@ -165,6 +190,7 @@ resource frontDoorDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-
 }
 
 output virtualNetwork string = virtualNetwork.name
+output aksSubnetName string = virtualNetwork.properties.subnets[1].name
 output frontDoorProfile string = frontDoorProfile.name
 output frontDoorEndpoint string = frontDoorEndpoint.name
 output frontDoorHostname string = frontDoorEndpoint.properties.hostName

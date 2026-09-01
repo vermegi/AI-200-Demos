@@ -4,82 +4,35 @@ $rg = "rg-AI200-$userHash"
 $location = "francecentral"
 
 $acrName = "acr$userHash"
-$aksName = "aks-$userHash"
-$foundryName = "foundry-resource-$userHash"
+$aksCluster = "aks-$userHash"
+$foundryAccount = "foundry-resource-$userHash"
 $foundryProjectName = "foundry-project-$userHash"
 
 cd 'C:\Users\gvermeiren\github\AI-200-Demos\3. AKS'
-
-# Use the subscription that contains the existing resource group.
-# az login
-# az account set --subscription "<subscription-id-or-name>"
-
-# Register the providers required by Foundry, ACR, and AKS.
-# az provider register --namespace Microsoft.CognitiveServices
-# az provider register --namespace Microsoft.ContainerService
-# az provider register --namespace Microsoft.ContainerRegistry
-# az provider register --namespace Microsoft.Compute
-# az provider register --namespace Microsoft.Network
-# az provider register --namespace Microsoft.Storage
 
 # Confirm that the existing resources are in the expected resource group.
 az group show --name $rg
 az acr show --resource-group $rg --name $acrName
 
-# Create the Microsoft Foundry resource. Resource-key access is not required.
-az cognitiveservices account create `
-	--name $foundryName `
-	--resource-group $rg `
-	--location $location `
-	--custom-domain $foundryName `
-	--kind AIServices `
-	--sku s0 `
-    --assign-identity `
-    --allow-project-management true `
-	--yes
-
-# Create the Microsoft Foundry project resource
-az cognitiveservices account project create `
-    --name $foundryName `
-    --resource-group $rg `
-    --project-name $foundryProjectName `
-    --location $location
-
-# Deploy gpt-5-mini to the existing Microsoft Foundry resource.
+# Inspect the model deployed to the Microsoft Foundry resource.
 $foundryModel = "gpt-5-mini"
-$foundryModelVersion = "2025-08-07"
+$foundryAccount
 
-az cognitiveservices model list `
-    --location $location `
-    --query "[?model.name=='$foundryModel']" `
-    --output table
-
-
-az cognitiveservices account deployment create `
-	--name $foundryName `
+az cognitiveservices account deployment show `
+	--name $foundryAccount `
 	--resource-group $rg `
 	--deployment-name $foundryModel `
-	--model-name $foundryModel `
-	--model-version $foundryModelVersion `
-	--model-format OpenAI `
-	--sku-name GlobalStandard `
-	--sku-capacity 1
+	--output table
 
-# Retrieve the Foundry endpoint. The API will use Entra ID, not a resource key.
-$foundryEndpoint = az cognitiveservices account show `
-	--resource-group $rg `
-	--name $foundryName `
-	--query properties.endpoint `
-	--output tsv
-echo $foundryEndpoint
+$foundryEndpoint
 
 $foundryProjectEndpoint = az cognitiveservices account project show `
 	--resource-group $rg `
-	--name $foundryName `
-    --project-name $foundryProjectName `
+	--name $foundryAccount `
+    --project-name $foundryProject `
 	--query properties.endpoints `
 	--output tsv
-echo $foundryProjectEndpoint
+$foundryProjectEndpoint
 
 # Build and push the API image with an ACR Task.
 # This uses the caller's existing ACR permissions; admin user credentials are not required.
@@ -90,68 +43,16 @@ az acr build `
     --source-acr-auth-id [caller] `
 	.\aks-deploy-python\api\
 
-# Create AKS with a managed identity. The ACR is ABAC-enabled, so grant its
-# repository-reader role explicitly after the cluster's kubelet identity exists.
-az aks create `
+# Inspect the cluster and the kubelet identity that pulls images and calls Foundry.
+az aks show `
 	--resource-group $rg `
-	--location $location `
-	--name $aksName `
-	--node-count 1 `
-	--node-vm-size Standard_D2s_v5 `
-	--tier free `
-	--vm-set-type VirtualMachineScaleSets `
-	--load-balancer-sku standard `
-	--enable-managed-identity `
-	--network-plugin azure `
-	--no-ssh-key
-
-# Allow the AKS kubelet identity to pull aks-api from this ABAC-enabled ACR.
-$kubeletObjectId = az aks show `
-	--resource-group $rg `
-	--name $aksName `
-	--query identityProfile.kubeletidentity.objectId `
-	--output tsv
-echo $kubeletObjectId
-
-# Get the cluster MI
-# $clusterClientId = az aks show `
-#     --name $aksName `
-#     --resource-group $rg `
-#     --query identity.principalId `
-#     --output tsv
-# echo $clusterClientId
-
-$acrId = az acr show `
-	--resource-group $rg `
-	--name $acrName `
-	--query id `
-	--output tsv
-echo $acrId
-
-az role assignment create `
-	--assignee-object-id $kubeletObjectId `
-	--assignee-principal-type ServicePrincipal `
-	--scope $acrId `
-	--role "Container Registry Repository Reader"
-
-# Allow the AKS kubelet identity to call the Foundry model using Entra ID.
-$foundryId = az cognitiveservices account show `
-	--resource-group $rg `
-	--name $foundryName `
-	--query id `
-	--output tsv
-echo $foundryId
-
-az role assignment create `
-	--assignee-object-id $kubeletObjectId `
-	--assignee-principal-type ServicePrincipal `
-	--scope $foundryId `
-	--role "Cognitive Services OpenAI User"
+	--name $aksCluster `
+	--query "{name:name, nodeRG:nodeResourceGroup, network:networkProfile.networkPluginMode, subnet:agentPoolProfiles[0].vnetSubnetId}"
 
 # Configure kubectl for the new cluster.
 az aks get-credentials `
 	--resource-group $rg `
-	--name $aksName 
+	--name $aksCluster 
 
 # Create a user-specific deployment manifest without changing the template.
 # The API authenticates with its AKS managed identity, so no Foundry key is added.
@@ -182,3 +83,5 @@ cd 'C:\Users\gvermeiren\github\AI-200-Demos\3. AKS\aks-deploy-python\client'
 python main.py
 
 deactivate
+
+

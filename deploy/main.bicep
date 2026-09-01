@@ -29,6 +29,9 @@ var containerAppsEnvironmentName = 'aca-env-demo'
 var containerAppName = 'ai-api'
 var manageContainerAppName = 'ai-api-manage'
 var scaleContainerAppName = 'agent-api-scale'
+var foundryName = 'foundry-resource-${userHash}'
+var foundryProjectName = 'foundry-project-${userHash}'
+var aksName = 'aks-${userHash}'
 var logAnalyticsWorkspaceName = 'log-ai200-${userHash}'
 
 resource resourceGroup 'Microsoft.Resources/resourceGroups@2025-04-01' = {
@@ -104,6 +107,30 @@ module containerApps './container-apps.bicep' = {
   }
 }
 
+module foundry './foundry.bicep' = {
+  scope: az.resourceGroup(resourceGroup.name)
+  params: {
+    name: foundryName
+    projectName: foundryProjectName
+    location: location
+  }
+}
+
+// Deployed last so the cluster identities can be granted access to the registry, Foundry and subnet.
+module aks './aks.bicep' = {
+  scope: az.resourceGroup(resourceGroup.name)
+  params: {
+    name: aksName
+    location: location
+    dnsPrefix: aksName
+    virtualNetworkName: privateNetworking.outputs.virtualNetwork
+    subnetName: privateNetworking.outputs.aksSubnetName
+    registryName: registry.outputs.name
+    foundryName: foundry.outputs.name
+    logAnalyticsWorkspaceName: logAnalytics.outputs.name
+  }
+}
+
 output resourceGroup string = resourceGroup.name
 output registry string = registry.outputs.name
 output registryId string = registry.outputs.resourceId
@@ -128,3 +155,9 @@ output scaleContainerApp string = containerApps.outputs.scaleContainerAppName
 output scaleContainerAppUrl string = containerApps.outputs.scaleContainerAppUrl
 output scaleContainerAppPrincipalId string = containerApps.outputs.scaleContainerAppPrincipalId
 output logAnalyticsWorkspace string = logAnalytics.outputs.name
+output foundryAccount string = foundry.outputs.name
+output foundryEndpoint string = foundry.outputs.endpoint
+output foundryProject string = foundry.outputs.projectName
+output foundryModelDeployment string = foundry.outputs.modelDeploymentName
+output aksCluster string = aks.outputs.name
+output aksKubeletObjectId string = aks.outputs.kubeletIdentityObjectId
