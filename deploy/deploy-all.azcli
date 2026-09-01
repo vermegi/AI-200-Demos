@@ -1,0 +1,29 @@
+$userHash = "20260901"
+$location = "francecentral"
+
+# USE MCAPS ACCOUNT!
+az login
+
+$myId = az ad signed-in-user show --query id --output tsv
+$templateFile = Join-Path (Get-Location) "deploy\acr.bicep"
+echo $templateFile
+$deploymentName = "deploy-all-$userHash"
+
+az deployment sub create `
+    --name $deploymentName `
+    --location $location `
+    --template-file $templateFile `
+    --parameters userHash=$userHash location=$location principalId=$myId principalType="User"
+
+$outputs = az deployment sub show --name $deploymentName --query properties.outputs | ConvertFrom-Json
+
+$rg = $outputs.resourceGroup.value
+$acrName = $outputs.registry.value
+$acrId = $outputs.registryId.value
+$acrLoginServer = $outputs.loginServer.value
+
+echo $rg
+echo $acrName
+echo $acrId
+echo $acrLoginServer
+
