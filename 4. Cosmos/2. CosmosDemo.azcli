@@ -1,0 +1,105 @@
+# Variables
+$userHash = "20260902"
+$rg = "rg-AI200-$userHash"
+$location = "francecentral"
+
+$userHash
+
+# The Cosmos DB account, vector database, container, private endpoint, managed identity
+# and federated credentials are created by the Bicep templates in .\deploy.
+$cosmosAccount = "cosmos-rag-$userHash"
+$cosmosVectorDatabase = "vectorstore"
+$cosmosVectorContainer = "vectors"
+
+# Existing container platform resources, reused for the AKS deployment.
+$acrName = "acr$userHash"
+$aksName = "aks-$userHash"
+$identityName = "id-cosmos-client-$userHash"
+
+cd 'C:\Users\gvermeiren\github\AI-200-Demos\4. Cosmos'
+
+# az login
+# az account set --subscription "<subscription-id-or-name>"
+
+az group show --name $rg
+
+# The vector container carries a vector embedding policy and a diskANN index.
+az cosmosdb sql container show `
+    --resource-group $rg `
+    --account-name $cosmosAccount `
+    --database-name $cosmosVectorDatabase `
+    --name $cosmosVectorContainer `
+    --query "{name:name, vectorIndexes:resource.indexingPolicy.vectorIndexes, embeddings:resource.vectorEmbeddingPolicy.vectorEmbeddings}"
+
+# Retrieve the connection info. The client authenticates with Entra ID
+# (DefaultAzureCredential), so no account key is needed.
+$cosmosEndpoint = az cosmosdb show `
+    --resource-group $rg `
+    --name $cosmosAccount `
+    --query documentEndpoint `
+    --output tsv
+
+
+####################################################################
+# Containerize the client and deploy it to the existing AKS cluster.
+####################################################################
+
+# Confirm the ACR and AKS cluster created in the AKS demo still exist.
+az acr show --resource-group $rg --name $acrName --query name --output tsv
+az aks show --resource-group $rg --name $aksName --query name --output tsv
+
+$cosmosClientIdentityClientId
+
+# Build and push the client image with an ACR Task.
+# This uses the caller's existing ACR permissions; admin user credentials are not required.
+az acr build `
+    --registry $acrName `
+    --image vector-client:latest `
+    --file .\cosmosdb-implement-vector-python\client\Dockerfile `
+    --source-acr-auth-id [caller] `
+    .\cosmosdb-implement-vector-python\client\
+
+# Create user-specific manifests without changing the templates.
+$templateConfigMapFile = ".\cosmosdb-implement-vector-python\k8s\configmap.yaml"
+$configMapFile = ".\cosmosdb-implement-vector-python\k8s\configmap-$userHash.yaml"
+(Get-Content $templateConfigMapFile -Raw).Replace("COSMOS_ENDPOINT_VALUE", $cosmosEndpoint) | Set-Content $configMapFile -NoNewline
+
+$templateServiceAccountFile = ".\cosmosdb-implement-vector-python\k8s\serviceaccount.yaml"
+$serviceAccountFile = ".\cosmosdb-implement-vector-python\k8s\serviceaccount-$userHash.yaml"
+(Get-Content $templateServiceAccountFile -Raw).Replace("MANAGED_IDENTITY_CLIENT_ID", $cosmosClientIdentityClientId) | Set-Content $serviceAccountFile -NoNewline
+
+$templateDeploymentFile = ".\cosmosdb-implement-vector-python\k8s\deployment.yaml"
+$deploymentFile = ".\cosmosdb-implement-vector-python\k8s\deployment-$userHash.yaml"
+(Get-Content $templateDeploymentFile -Raw).Replace("ACR_ENDPOINT", "$acrName.azurecr.io") | Set-Content $deploymentFile -NoNewline
+
+# The pod federates through the fc-vector-client credential on the shared identity.
+az identity federated-credential list `
+    --resource-group $rg `
+    --identity-name $identityName `
+    --query "[].{name:name, subject:subject}" `
+    --output table
+
+# Apply the ConfigMap, ServiceAccount, Deployment, and public LoadBalancer Service.
+kubectl apply --filename $configMapFile
+kubectl apply --filename $serviceAccountFile
+kubectl apply --filename $deploymentFile
+kubectl apply --filename .\cosmosdb-implement-vector-python\k8s\service.yaml
+
+# Verify rollout and wait for the public service IP.
+kubectl get deploy,svc,sa
+kubectl rollout status deployment/vector-client
+kubectl get service vector-client-service
+
+# Browse to http://external_IP
+# - Load the vector data
+# - Run a vector similarity search with one of the sample queries
+# - Run a filtered vector search on a category
+
+
+
+
+# Troubleshooting.
+kubectl get pods --selector app=vector-client
+kubectl logs --selector app=vector-client --tail 50
+kubectl describe deployment vector-client
+

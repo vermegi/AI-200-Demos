@@ -56,27 +56,6 @@ $cosmosEndpoint
 $cosmosDatabase
 $cosmosContainer
 
-$env:COSMOS_ENDPOINT = $cosmosEndpoint
-$env:COSMOS_DATABASE = $cosmosDatabase
-$env:COSMOS_CONTAINER = $cosmosContainer
-
-Get-ChildItem Env:COSMOS_*
-
-cd "C:\Users\gvermeiren\github\AI-200-Demos\4. Cosmos\cosmosdb-build-query-python\client"
-
-# python -m venv labenv
-
-.\labenv\Scripts\Activate.ps1
-
-# python -m pip install -r requirements.txt
-
-python app.py
-
-# go to http://127.0.0.1:5000
-# Load sample chunks
-
-
-deactivate
 
 cd 'C:\Users\gvermeiren\github\AI-200-Demos\4. Cosmos'
 

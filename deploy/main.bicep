@@ -182,4 +182,6 @@ output cosmosAccount string = cosmos.outputs.name
 output cosmosEndpoint string = cosmos.outputs.endpoint
 output cosmosDatabase string = cosmos.outputs.databaseName
 output cosmosContainer string = cosmos.outputs.containerName
+output cosmosVectorDatabase string = cosmos.outputs.vectorDatabaseName
+output cosmosVectorContainer string = cosmos.outputs.vectorContainerName
 output cosmosClientIdentityClientId string = cosmos.outputs.clientIdentityClientId

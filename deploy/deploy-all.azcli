@@ -51,6 +51,8 @@ $cosmosAccount = $outputs.cosmosAccount.value
 $cosmosEndpoint = $outputs.cosmosEndpoint.value
 $cosmosDatabase = $outputs.cosmosDatabase.value
 $cosmosContainer = $outputs.cosmosContainer.value
+$cosmosVectorDatabase = $outputs.cosmosVectorDatabase.value
+$cosmosVectorContainer = $outputs.cosmosVectorContainer.value
 $cosmosClientIdentityClientId = $outputs.cosmosClientIdentityClientId.value
 
 echo $rg
@@ -85,6 +87,8 @@ echo $cosmosAccount
 echo $cosmosEndpoint
 echo $cosmosDatabase
 echo $cosmosContainer
+echo $cosmosVectorDatabase
+echo $cosmosVectorContainer
 echo $cosmosClientIdentityClientId
 
 

@@ -14,7 +14,18 @@ param databaseName string = 'ragstore'
 @description('Name of the container holding the RAG chunks.')
 param containerName string = 'chunks'
 
-@description('Partition key path of the container.')
+@description('Name of the SQL database holding the vector search documents.')
+param vectorDatabaseName string = 'vectorstore'
+
+@description('Name of the container holding the vector search documents.')
+param vectorContainerName string = 'vectors'
+
+@description('Number of dimensions of the embeddings stored in the vector container.')
+@minValue(2)
+@maxValue(4096)
+param vectorDimensions int = 256
+
+@description('Partition key path of the containers.')
 param partitionKeyPath string = '/documentId'
 
 @description('Name of the user-assigned managed identity used by the AKS client pod.')
@@ -26,8 +37,11 @@ param aksOidcIssuerUrl string
 @description('Kubernetes namespace of the service account used by the client pod.')
 param kubernetesNamespace string = 'default'
 
-@description('Kubernetes service account used by the client pod.')
+@description('Kubernetes service account used by the RAG client pod.')
 param kubernetesServiceAccountName string = 'cosmos-client-sa'
+
+@description('Kubernetes service account used by the vector search client pod.')
+param vectorKubernetesServiceAccountName string = 'vector-client-sa'
 
 @description('Name of the virtual network hosting the private endpoint subnet.')
 param virtualNetworkName string
@@ -77,6 +91,11 @@ resource cosmos 'Microsoft.DocumentDB/databaseAccounts@2025-05-01-preview' = {
     ]
     // Recent API versions expect capacityMode instead of the EnableServerless capability.
     capacityMode: 'Serverless'
+    capabilities: [
+      {
+        name: 'EnableNoSQLVectorSearch'
+      }
+    ]
     // The clients authenticate with Entra ID through DefaultAzureCredential, so account keys stay unusable.
     disableLocalAuth: true
     // Kept enabled so the demo client can also run from a developer machine next to the private endpoint.
@@ -111,6 +130,63 @@ resource container 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/container
   }
 }
 
+resource vectorDatabase 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2025-05-01-preview' = {
+  parent: cosmos
+  name: vectorDatabaseName
+  properties: {
+    resource: {
+      id: vectorDatabaseName
+    }
+  }
+}
+
+resource vectorContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2025-05-01-preview' = {
+  parent: vectorDatabase
+  name: vectorContainerName
+  properties: {
+    resource: {
+      id: vectorContainerName
+      partitionKey: {
+        paths: [
+          partitionKeyPath
+        ]
+        kind: 'Hash'
+      }
+      indexingPolicy: {
+        indexingMode: 'consistent'
+        automatic: true
+        includedPaths: [
+          {
+            path: '/*'
+          }
+        ]
+        // The embeddings are served by the diskANN index, so they stay out of the standard index.
+        excludedPaths: [
+          {
+            path: '/embedding/*'
+          }
+        ]
+        vectorIndexes: [
+          {
+            path: '/embedding'
+            type: 'diskANN'
+          }
+        ]
+      }
+      vectorEmbeddingPolicy: {
+        vectorEmbeddings: [
+          {
+            path: '/embedding'
+            dataType: 'float32'
+            distanceFunction: 'cosine'
+            dimensions: vectorDimensions
+          }
+        ]
+      }
+    }
+  }
+}
+
 // Identity the AKS client pod exchanges its service account token for.
 resource clientIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2025-01-31-preview' = {
   name: clientIdentityName
@@ -127,6 +203,22 @@ resource federatedCredential 'Microsoft.ManagedIdentity/userAssignedIdentities/f
       'api://AzureADTokenExchange'
     ]
   }
+}
+
+// The vector search client reuses the same identity, so it needs its own subject mapping.
+resource vectorFederatedCredential 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2025-01-31-preview' = {
+  parent: clientIdentity
+  name: 'fc-vector-client'
+  properties: {
+    issuer: aksOidcIssuerUrl
+    subject: 'system:serviceaccount:${kubernetesNamespace}:${vectorKubernetesServiceAccountName}'
+    audiences: [
+      'api://AzureADTokenExchange'
+    ]
+  }
+  dependsOn: [
+    federatedCredential
+  ]
 }
 
 resource clientDataContributor 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2025-05-01-preview' = {
@@ -235,6 +327,8 @@ output resourceId string = cosmos.id
 output endpoint string = cosmos.properties.documentEndpoint
 output databaseName string = database.name
 output containerName string = container.name
+output vectorDatabaseName string = vectorDatabase.name
+output vectorContainerName string = vectorContainer.name
 output clientIdentityName string = clientIdentity.name
 output clientIdentityClientId string = clientIdentity.properties.clientId
 output clientIdentityPrincipalId string = clientIdentity.properties.principalId
