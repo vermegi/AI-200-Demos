@@ -1,0 +1,10 @@
+Expand-Archive `
+    -Path 'C:\Users\gvermeiren\github\AI-200-Demos\mslearn-azure-ai\downloads\python\postgresql-build-agent-python.zip' `
+    -DestinationPath 'c:\Users\gvermeiren\github\AI-200-Demos\5. PostGreSQL\postgresql-build-agent-python' `
+    -Force
+
+Expand-Archive `
+    -Path 'C:\Users\gvermeiren\github\AI-200-Demos\mslearn-azure-ai\downloads\python\postgresql-vector-search-python.zip' `
+    -DestinationPath 'c:\Users\gvermeiren\github\AI-200-Demos\5. PostGreSQL\postgresql-vector-search-python' `
+    -Force
+
