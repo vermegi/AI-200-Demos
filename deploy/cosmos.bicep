@@ -20,6 +20,9 @@ param vectorDatabaseName string = 'vectorstore'
 @description('Name of the container holding the vector search documents.')
 param vectorContainerName string = 'vectors'
 
+@description('Name of the SQL database used by the vector index optimization sample.')
+param indexOptimizationDatabaseName string = 'indexoptimize'
+
 @description('Number of dimensions of the embeddings stored in the vector container.')
 @minValue(2)
 @maxValue(4096)
@@ -60,6 +63,20 @@ param logAnalyticsWorkspaceName string
 // Built-in role definition IDs.
 var contributorRoleId = 'b24988ac-6180-42a0-ab88-20f7382dd24c'
 var privateDnsZoneName = 'privatelink.documents.azure.com'
+var indexOptimizationContainers = [
+  {
+    name: 'vectors-flat'
+    indexType: 'flat'
+  }
+  {
+    name: 'vectors-quantized'
+    indexType: 'quantizedFlat'
+  }
+  {
+    name: 'vectors-diskann'
+    indexType: 'diskANN'
+  }
+]
 
 resource virtualNetwork 'Microsoft.Network/virtualNetworks@2025-01-01' existing = {
   name: virtualNetworkName
@@ -186,6 +203,62 @@ resource vectorContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/con
     }
   }
 }
+
+resource indexOptimizationDatabase 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2025-05-01-preview' = {
+  parent: cosmos
+  name: indexOptimizationDatabaseName
+  properties: {
+    resource: {
+      id: indexOptimizationDatabaseName
+    }
+  }
+}
+
+resource indexOptimizationContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2025-05-01-preview' = [for item in indexOptimizationContainers: {
+  parent: indexOptimizationDatabase
+  name: item.name
+  properties: {
+    resource: {
+      id: item.name
+      partitionKey: {
+        paths: [
+          partitionKeyPath
+        ]
+        kind: 'Hash'
+      }
+      indexingPolicy: {
+        indexingMode: 'consistent'
+        automatic: true
+        includedPaths: [
+          {
+            path: '/*'
+          }
+        ]
+        excludedPaths: [
+          {
+            path: '/embedding/*'
+          }
+        ]
+        vectorIndexes: [
+          {
+            path: '/embedding'
+            type: item.indexType
+          }
+        ]
+      }
+      vectorEmbeddingPolicy: {
+        vectorEmbeddings: [
+          {
+            path: '/embedding'
+            dataType: 'float32'
+            distanceFunction: 'cosine'
+            dimensions: vectorDimensions
+          }
+        ]
+      }
+    }
+  }
+}]
 
 // Identity the AKS client pod exchanges its service account token for.
 resource clientIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2025-01-31-preview' = {
@@ -329,6 +402,8 @@ output databaseName string = database.name
 output containerName string = container.name
 output vectorDatabaseName string = vectorDatabase.name
 output vectorContainerName string = vectorContainer.name
+output indexOptimizationDatabaseName string = indexOptimizationDatabase.name
+output indexOptimizationContainerNames string[] = [for item in indexOptimizationContainers: item.name]
 output clientIdentityName string = clientIdentity.name
 output clientIdentityClientId string = clientIdentity.properties.clientId
 output clientIdentityPrincipalId string = clientIdentity.properties.principalId

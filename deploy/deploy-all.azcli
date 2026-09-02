@@ -53,6 +53,8 @@ $cosmosDatabase = $outputs.cosmosDatabase.value
 $cosmosContainer = $outputs.cosmosContainer.value
 $cosmosVectorDatabase = $outputs.cosmosVectorDatabase.value
 $cosmosVectorContainer = $outputs.cosmosVectorContainer.value
+$cosmosIndexOptimizationDatabase = $outputs.cosmosIndexOptimizationDatabase.value
+$cosmosIndexOptimizationContainers = $outputs.cosmosIndexOptimizationContainers.value
 $cosmosClientIdentityClientId = $outputs.cosmosClientIdentityClientId.value
 
 echo $rg
@@ -89,6 +91,8 @@ echo $cosmosDatabase
 echo $cosmosContainer
 echo $cosmosVectorDatabase
 echo $cosmosVectorContainer
+echo $cosmosIndexOptimizationDatabase
+echo $cosmosIndexOptimizationContainers
 echo $cosmosClientIdentityClientId
 
 

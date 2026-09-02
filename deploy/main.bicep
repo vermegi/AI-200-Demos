@@ -184,4 +184,6 @@ output cosmosDatabase string = cosmos.outputs.databaseName
 output cosmosContainer string = cosmos.outputs.containerName
 output cosmosVectorDatabase string = cosmos.outputs.vectorDatabaseName
 output cosmosVectorContainer string = cosmos.outputs.vectorContainerName
+output cosmosIndexOptimizationDatabase string = cosmos.outputs.indexOptimizationDatabaseName
+output cosmosIndexOptimizationContainers string[] = cosmos.outputs.indexOptimizationContainerNames
 output cosmosClientIdentityClientId string = cosmos.outputs.clientIdentityClientId
