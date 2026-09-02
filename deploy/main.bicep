@@ -33,6 +33,8 @@ var foundryName = 'foundry-resource-${userHash}'
 var foundryProjectName = 'foundry-project-${userHash}'
 var aksName = 'aks-${userHash}'
 var logAnalyticsWorkspaceName = 'log-ai200-${userHash}'
+var cosmosName = take('cosmos-rag-${userHash}', 44)
+var cosmosClientIdentityName = 'id-cosmos-client-${userHash}'
 
 resource resourceGroup 'Microsoft.Resources/resourceGroups@2025-04-01' = {
   name: resourceGroupName
@@ -131,6 +133,21 @@ module aks './aks.bicep' = {
   }
 }
 
+// Deployed after the cluster so the client identity can federate with the cluster OIDC issuer.
+module cosmos './cosmos.bicep' = {
+  scope: az.resourceGroup(resourceGroup.name)
+  params: {
+    name: cosmosName
+    location: location
+    clientIdentityName: cosmosClientIdentityName
+    aksOidcIssuerUrl: aks.outputs.oidcIssuerUrl
+    virtualNetworkName: privateNetworking.outputs.virtualNetwork
+    privateEndpointSubnetName: privateNetworking.outputs.privateEndpointSubnetName
+    userPrincipalId: principalId
+    logAnalyticsWorkspaceName: logAnalytics.outputs.name
+  }
+}
+
 output resourceGroup string = resourceGroup.name
 output registry string = registry.outputs.name
 output registryId string = registry.outputs.resourceId
@@ -161,3 +178,8 @@ output foundryProject string = foundry.outputs.projectName
 output foundryModelDeployment string = foundry.outputs.modelDeploymentName
 output aksCluster string = aks.outputs.name
 output aksKubeletObjectId string = aks.outputs.kubeletIdentityObjectId
+output cosmosAccount string = cosmos.outputs.name
+output cosmosEndpoint string = cosmos.outputs.endpoint
+output cosmosDatabase string = cosmos.outputs.databaseName
+output cosmosContainer string = cosmos.outputs.containerName
+output cosmosClientIdentityClientId string = cosmos.outputs.clientIdentityClientId

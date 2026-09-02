@@ -205,5 +205,6 @@ resource aksDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-previe
 
 output name string = aks.name
 output resourceId string = aks.id
+output oidcIssuerUrl string = aks.properties.oidcIssuerProfile.issuerURL
 output kubeletIdentityObjectId string = aks.properties.identityProfile.kubeletidentity.objectId
 output nodeResourceGroup string = aks.properties.nodeResourceGroup

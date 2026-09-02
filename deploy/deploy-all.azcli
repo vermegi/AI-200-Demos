@@ -8,7 +8,8 @@ az login
 $myId = az ad signed-in-user show --query id --output tsv
 $templateFile = Join-Path (Get-Location) "deploy\main.bicep"
 echo $templateFile
-echo $deploymentName = "deploy-all-$userHash"
+$deploymentName = "deploy-all-$userHash"
+$deploymentName
 
 az deployment sub create `
     --name $deploymentName `
@@ -46,6 +47,11 @@ $foundryProject = $outputs.foundryProject.value
 $foundryModelDeployment = $outputs.foundryModelDeployment.value
 $aksCluster = $outputs.aksCluster.value
 $aksKubeletObjectId = $outputs.aksKubeletObjectId.value
+$cosmosAccount = $outputs.cosmosAccount.value
+$cosmosEndpoint = $outputs.cosmosEndpoint.value
+$cosmosDatabase = $outputs.cosmosDatabase.value
+$cosmosContainer = $outputs.cosmosContainer.value
+$cosmosClientIdentityClientId = $outputs.cosmosClientIdentityClientId.value
 
 echo $rg
 echo $acrName
@@ -75,6 +81,11 @@ echo $foundryProject
 echo $foundryModelDeployment
 echo $aksCluster
 echo $aksKubeletObjectId
+echo $cosmosAccount
+echo $cosmosEndpoint
+echo $cosmosDatabase
+echo $cosmosContainer
+echo $cosmosClientIdentityClientId
 
 
 $privateEndpointConnectionName = az network private-endpoint-connection list `

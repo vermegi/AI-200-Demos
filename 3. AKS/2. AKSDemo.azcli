@@ -1,5 +1,5 @@
 # Variables
-$userHash = "20260616"
+$userHash = "20260902"
 $rg = "rg-AI200-$userHash"
 $location = "francecentral"
 
@@ -52,7 +52,6 @@ echo $apiExternalIp
 
 Set-Content -Path .\\aks-configure-python\\client\\.env -Value "API_ENDPOINT=http://$apiExternalIp"
 
-# NEW TERMINAL
 
 cd 'C:\Users\gvermeiren\github\AI-200-Demos\3. AKS\aks-configure-python\client'
 

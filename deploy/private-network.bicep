@@ -190,6 +190,7 @@ resource frontDoorDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-
 }
 
 output virtualNetwork string = virtualNetwork.name
+output privateEndpointSubnetName string = virtualNetwork.properties.subnets[0].name
 output aksSubnetName string = virtualNetwork.properties.subnets[1].name
 output frontDoorProfile string = frontDoorProfile.name
 output frontDoorEndpoint string = frontDoorEndpoint.name
