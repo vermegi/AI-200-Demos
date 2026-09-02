@@ -1,0 +1,105 @@
+# Variables
+$userHash = "20260902"
+$rg = "rg-AI200-$userHash"
+$location = "francecentral"
+
+$userHash
+
+# The Cosmos DB account, index optimization database, containers, private endpoint,
+# managed identity, and base federated credentials are created by the Bicep templates in .\deploy.
+$cosmosAccount = "cosmos-rag-$userHash"
+$cosmosIndexOptimizationDatabase = "indexoptimize"
+$cosmosIndexOptimizationContainers = @("vectors-flat", "vectors-quantized", "vectors-diskann")
+
+# Existing container platform resources, reused for the AKS deployment.
+$acrName = "acr$userHash"
+$aksName = "aks-$userHash"
+$identityName = "id-cosmos-client-$userHash"
+
+cd 'C:\Users\gvermeiren\github\AI-200-Demos\4. Cosmos'
+
+# az login
+# az account set --subscription "<subscription-id-or-name>"
+
+az group show --name $rg
+
+# Compare the vector index configured on each optimization container.
+foreach ($containerName in $cosmosIndexOptimizationContainers) {
+	az cosmosdb sql container show `
+		--resource-group $rg `
+		--account-name $cosmosAccount `
+		--database-name $cosmosIndexOptimizationDatabase `
+		--name $containerName `
+		--query "{name:name, vectorIndexes:resource.indexingPolicy.vectorIndexes}" `
+		--output json
+}
+
+# Retrieve the connection info. The client authenticates with Entra ID
+# (DefaultAzureCredential), so no account key is needed.
+$cosmosEndpoint = az cosmosdb show `
+	--resource-group $rg `
+	--name $cosmosAccount `
+	--query documentEndpoint `
+	--output tsv
+
+
+####################################################################
+# Containerize the client and deploy it to the existing AKS cluster.
+####################################################################
+
+# Confirm the ACR and AKS cluster created in the AKS demo still exist.
+az acr show --resource-group $rg --name $acrName --query name --output tsv
+az aks show --resource-group $rg --name $aksName --query name --output tsv
+
+# Resolve the shared client identity and AKS OIDC issuer used by Workload Identity.
+$cosmosClientIdentityClientId = az identity show `
+	--resource-group $rg `
+	--name $identityName `
+	--query clientId `
+	--output tsv
+
+# Build and push the client image with an ACR Task.
+# This uses the caller's existing ACR permissions; admin user credentials are not required.
+az acr build `
+	--registry $acrName `
+	--image index-client:latest `
+	--file .\cosmosdb-optimize-query-python\client\Dockerfile `
+	--source-acr-auth-id [caller] `
+	.\cosmosdb-optimize-query-python\client\
+
+# Create user-specific manifests without changing the templates.
+$templateConfigMapFile = ".\cosmosdb-optimize-query-python\k8s\configmap.yaml"
+$configMapFile = ".\cosmosdb-optimize-query-python\k8s\configmap-$userHash.yaml"
+(Get-Content $templateConfigMapFile -Raw).Replace("COSMOS_ENDPOINT_VALUE", $cosmosEndpoint) | Set-Content $configMapFile -NoNewline
+
+$templateServiceAccountFile = ".\cosmosdb-optimize-query-python\k8s\serviceaccount.yaml"
+$serviceAccountFile = ".\cosmosdb-optimize-query-python\k8s\serviceaccount-$userHash.yaml"
+(Get-Content $templateServiceAccountFile -Raw).Replace("MANAGED_IDENTITY_CLIENT_ID", $cosmosClientIdentityClientId) | Set-Content $serviceAccountFile -NoNewline
+
+$templateDeploymentFile = ".\cosmosdb-optimize-query-python\k8s\deployment.yaml"
+$deploymentFile = ".\cosmosdb-optimize-query-python\k8s\deployment-$userHash.yaml"
+(Get-Content $templateDeploymentFile -Raw).Replace("ACR_ENDPOINT", "$acrName.azurecr.io") | Set-Content $deploymentFile -NoNewline
+
+# Apply the ConfigMap, ServiceAccount, Deployment, and public LoadBalancer Service.
+kubectl apply --filename $configMapFile
+kubectl apply --filename $serviceAccountFile
+kubectl apply --filename $deploymentFile
+kubectl apply --filename .\cosmosdb-optimize-query-python\k8s\service.yaml
+
+# Verify rollout and wait for the public service IP.
+kubectl get deploy,svc,sa
+kubectl rollout status deployment/index-client
+kubectl get service index-client-service
+
+# Browse to http://external_IP
+# - Load the sample vector data into all three containers
+# - Compare vector query latency and RU consumption across index types
+# - Compare filtered vector query performance
+
+
+
+
+# Troubleshooting.
+kubectl get pods --selector app=index-client
+kubectl logs --selector app=index-client --tail 50
+kubectl describe deployment index-client

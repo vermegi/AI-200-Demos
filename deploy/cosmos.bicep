@@ -46,6 +46,9 @@ param kubernetesServiceAccountName string = 'cosmos-client-sa'
 @description('Kubernetes service account used by the vector search client pod.')
 param vectorKubernetesServiceAccountName string = 'vector-client-sa'
 
+@description('Kubernetes service account used by the vector index optimization client pod.')
+param indexKubernetesServiceAccountName string = 'index-client-sa'
+
 @description('Name of the virtual network hosting the private endpoint subnet.')
 param virtualNetworkName string
 
@@ -291,6 +294,22 @@ resource vectorFederatedCredential 'Microsoft.ManagedIdentity/userAssignedIdenti
   }
   dependsOn: [
     federatedCredential
+  ]
+}
+
+// The index optimization client reuses the same identity with its own service account subject.
+resource indexFederatedCredential 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2025-01-31-preview' = {
+  parent: clientIdentity
+  name: 'fc-index-client'
+  properties: {
+    issuer: aksOidcIssuerUrl
+    subject: 'system:serviceaccount:${kubernetesNamespace}:${indexKubernetesServiceAccountName}'
+    audiences: [
+      'api://AzureADTokenExchange'
+    ]
+  }
+  dependsOn: [
+    vectorFederatedCredential
   ]
 }
 
