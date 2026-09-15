@@ -1,0 +1,197 @@
+# Query data samples - Azure Database for PostgreSQL
+# https://learn.microsoft.com/en-us/training/modules/build-query-azure-database-postgresql/5-query-data
+# Run these inside psql, connected to the agent_memory database.
+
+psql "host=$DB_HOST port=5432 dbname=agent_memory user=$DB_USER password=$DB_PASSWORD sslmode=require"
+
+
+-- ============================================================
+-- 1. Alias scope: WHERE runs before SELECT, so aliases are unknown there
+-- ============================================================
+
+-- Fails: 'msg_date' does not exist yet when WHERE executes
+SELECT DATE(created_at) AS msg_date, content
+FROM messages
+WHERE msg_date > '2024-01-01';
+
+-- Works: repeat the expression in WHERE
+SELECT DATE(created_at) AS msg_date, content
+FROM messages
+WHERE DATE(created_at) > '2024-01-01';
+
+-- Works: ORDER BY runs after SELECT, so the alias is available
+SELECT DATE(created_at) AS msg_date, content
+FROM messages
+WHERE DATE(created_at) > '2024-01-01'
+ORDER BY msg_date;
+
+
+-- ============================================================
+-- 2. PostgreSQL-specific filtering: ILIKE, NULLS ordering, COALESCE
+-- ============================================================
+
+-- Case-insensitive pattern match, no LOWER() needed
+SELECT * FROM messages WHERE content ILIKE '%error%';
+
+-- Control where NULLs land in the sort order
+SELECT id, session_id, ended_at FROM conversations ORDER BY ended_at NULLS LAST;
+
+-- Return the first non-null value as a default
+SELECT id, COALESCE(metadata->>'title', 'Untitled') AS title FROM conversations;
+
+
+-- ============================================================
+-- 3. Query JSONB: extraction, existence and containment operators
+-- ============================================================
+
+-- ->> extracts as text, #>> navigates a nested path as text
+SELECT metadata->>'status' AS status,
+       checkpoint_data#>>'{results,0,score}' AS first_score
+FROM task_checkpoints;
+
+-- ? checks key existence, @> tests containment (both can use GIN indexes)
+SELECT * FROM conversations WHERE metadata ? 'priority';
+SELECT * FROM task_checkpoints WHERE checkpoint_data @> '{"status": "completed"}';
+
+-- Expand a JSONB array to filter on its elements
+SELECT DISTINCT c.*
+FROM conversations c,
+     jsonb_array_elements_text(c.metadata->'tags') AS tag
+WHERE tag = 'support';
+
+
+-- ============================================================
+-- 4. Keyset pagination: faster than OFFSET on large tables
+-- ============================================================
+
+-- First page: the 20 most recent messages
+SELECT id, conversation_id, content, created_at
+FROM messages
+ORDER BY created_at DESC, id DESC
+LIMIT 20;
+
+-- Next page: filter on the last seen (timestamp, id) pair instead of OFFSET
+SELECT id, conversation_id, content, created_at
+FROM messages
+WHERE (created_at, id) < ('2024-06-15 10:30:00', 12345)
+ORDER BY created_at DESC, id DESC
+LIMIT 20;
+
+
+-- ============================================================
+-- 5. CTEs: build a complex query as readable named steps
+-- ============================================================
+
+WITH recent_conversations AS (
+    SELECT id, user_id, started_at
+    FROM conversations
+    WHERE started_at > CURRENT_DATE - INTERVAL '7 days'
+),
+message_stats AS (
+    SELECT conversation_id, COUNT(*) AS message_count, MAX(created_at) AS last_message_at
+    FROM messages
+    GROUP BY conversation_id
+)
+SELECT rc.user_id, rc.started_at, COALESCE(ms.message_count, 0) AS message_count
+FROM recent_conversations rc
+LEFT JOIN message_stats ms ON rc.id = ms.conversation_id;
+
+
+-- ============================================================
+-- 6. Recursive CTE: walk a hierarchy, with a depth limit to avoid cycles
+-- ============================================================
+
+WITH RECURSIVE task_tree AS (
+    -- Base case: start with the parent task
+    SELECT id, parent_id, title, 1 AS depth
+    FROM tasks WHERE id = 1
+    UNION ALL
+    -- Recursive case: find children of the current level
+    SELECT t.id, t.parent_id, t.title, tt.depth + 1
+    FROM tasks t
+    INNER JOIN task_tree tt ON t.parent_id = tt.id
+    WHERE tt.depth < 10
+)
+SELECT * FROM task_tree ORDER BY depth, id;
+
+-- Same pattern applied to a threaded conversation
+WITH RECURSIVE thread AS (
+    SELECT id, parent_id, content, role, 0 AS depth
+    FROM messages
+    WHERE id = :root_message_id
+    UNION ALL
+    SELECT m.id, m.parent_id, m.content, m.role, t.depth + 1
+    FROM messages m
+    INNER JOIN thread t ON m.parent_id = t.id
+    WHERE t.depth < 50
+)
+SELECT * FROM thread ORDER BY depth, id;
+
+
+-- ============================================================
+-- 7. RETURNING: get generated IDs and defaults without a second query
+-- ============================================================
+
+INSERT INTO conversations (user_id, session_id)
+VALUES ('user123', 'sess_abc')
+RETURNING id;
+
+INSERT INTO messages (conversation_id, role, content)
+VALUES (1, 'user', 'Hello')
+RETURNING id, created_at;
+
+UPDATE tasks SET status = 'completed', completed_at = CURRENT_TIMESTAMP
+WHERE id = 5
+RETURNING id, status, completed_at;
+
+
+-- ============================================================
+-- 8. Upsert with ON CONFLICT: insert or update in one statement
+-- ============================================================
+
+-- EXCLUDED holds the values that would have been inserted
+INSERT INTO user_preferences (user_id, preference_key, preference_value)
+VALUES ('user123', 'theme', 'dark')
+ON CONFLICT (user_id, preference_key)
+DO UPDATE SET
+    preference_value = EXCLUDED.preference_value,
+    updated_at = CURRENT_TIMESTAMP;
+
+-- DO NOTHING silently skips rows that violate the constraint
+INSERT INTO tags (name) VALUES ('important') ON CONFLICT (name) DO NOTHING;
+
+
+-- ============================================================
+-- 9. AI app patterns: context retrieval, checkpointing, paginated search
+-- ============================================================
+
+-- Load conversation history plus metadata to build model context
+WITH conversation_context AS (
+    SELECT c.id, c.session_id, c.metadata->>'model' AS model
+    FROM conversations c
+    WHERE c.session_id = :session_id AND c.ended_at IS NULL
+)
+SELECT cc.session_id, cc.model, m.role, m.content, m.created_at
+FROM conversation_context cc
+INNER JOIN messages m ON cc.id = m.conversation_id
+ORDER BY m.created_at
+LIMIT 50;
+
+-- Record a task checkpoint; (xmax = 0) tells you if the row was newly inserted
+INSERT INTO task_checkpoints (task_id, step_number, checkpoint_data)
+VALUES (:task_id, :step_number, :checkpoint_json::jsonb)
+ON CONFLICT (task_id, step_number)
+DO UPDATE SET checkpoint_data = EXCLUDED.checkpoint_data, updated_at = CURRENT_TIMESTAMP
+RETURNING id, created_at, (xmax = 0) AS is_new;
+
+-- Keyset pagination combined with a JSONB containment filter
+SELECT c.id, c.session_id, c.started_at, c.metadata->>'status' AS status
+FROM conversations c
+WHERE c.user_id = :user_id
+  AND c.metadata @> :filter_json::jsonb
+  AND (c.started_at, c.id) < (:last_started_at, :last_id)
+ORDER BY c.started_at DESC, c.id DESC
+LIMIT 20;
+
+
+exit

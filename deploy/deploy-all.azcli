@@ -6,6 +6,9 @@ $embeddingsApiKey = "demo-key-12345"
 az login
 
 $myId = az ad signed-in-user show --query id --output tsv
+$myUpn = az ad signed-in-user show --query userPrincipalName --output tsv
+$myId
+$myUpn
 $templateFile = Join-Path (Get-Location) "deploy\main.bicep"
 echo $templateFile
 $deploymentName = "deploy-all-$userHash"
@@ -15,7 +18,7 @@ az deployment sub create `
     --name $deploymentName `
     --location $location `
     --template-file $templateFile `
-    --parameters userHash=$userHash location=$location principalId=$myId embeddingsApiKey=$embeddingsApiKey
+    --parameters userHash=$userHash location=$location principalId=$myId userPrincipalName=$myUpn embeddingsApiKey=$embeddingsApiKey
 
 $outputs = az deployment sub show --name $deploymentName --query properties.outputs | ConvertFrom-Json
 
@@ -56,6 +59,10 @@ $cosmosVectorContainer = $outputs.cosmosVectorContainer.value
 $cosmosIndexOptimizationDatabase = $outputs.cosmosIndexOptimizationDatabase.value
 $cosmosIndexOptimizationContainers = $outputs.cosmosIndexOptimizationContainers.value
 $cosmosClientIdentityClientId = $outputs.cosmosClientIdentityClientId.value
+$postgresServer = $outputs.postgresServer.value
+$postgresHost = $outputs.postgresHost.value
+$postgresDatabase = $outputs.postgresDatabase.value
+$postgresAdmin = $outputs.postgresAdmin.value
 
 echo $rg
 echo $acrName
@@ -94,6 +101,10 @@ echo $cosmosVectorContainer
 echo $cosmosIndexOptimizationDatabase
 echo $cosmosIndexOptimizationContainers
 echo $cosmosClientIdentityClientId
+echo $postgresServer
+echo $postgresHost
+echo $postgresDatabase
+echo $postgresAdmin
 
 
 $privateEndpointConnectionName = az network private-endpoint-connection list `

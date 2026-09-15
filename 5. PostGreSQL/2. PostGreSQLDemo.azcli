@@ -1,0 +1,57 @@
+$DB_HOST = $postgresHost
+$DB_NAME = $postgresDatabase
+$DB_USER = $postgresAdmin
+
+$DB_HOST
+$DB_NAME
+$DB_USER
+
+$DB_PASSWORD = az account get-access-token --resource https://ossrdbms-aad.database.windows.net --query accessToken --output tsv
+
+# Set as environment variables so tools like psql/pgAdmin can pick them up
+$env:DB_HOST = $DB_HOST
+$env:DB_NAME = $DB_NAME
+$env:DB_USER = $DB_USER
+$env:PGPASSWORD = $DB_PASSWORD
+
+
+
+# az postgres flexible-server --help
+# az postgres flexible-server connect -n $postgresServer -u $postgresAdmin -d $postgresDatabase
+
+
+psql "host=$DB_HOST port=5432 dbname=$DB_NAME user=$DB_USER password=$DB_PASSWORD sslmode=require"
+
+SELECT version();
+
+CREATE EXTENSION IF NOT EXISTS vector;
+
+CREATE TABLE products (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    category TEXT,
+    description TEXT,
+    price NUMERIC(10, 2),
+    embedding vector(330)
+);
+
+CREATE INDEX products_embedding_idx
+ON products USING hnsw (embedding vector_cosine_ops)
+WITH (m = 16, ef_construction = 64);
+
+\d products
+
+SELECT id, name, category, description, price
+FROM products
+LIMIT 5;
+
+exit
+
+cd "C:\Users\gvermeiren\github\AI-200-Demos\5. PostGreSQL\postgresql-vector-search-python\client"
+
+# python -m venv .venv
+# .\.venv\Scripts\Activate.ps1
+# pip install -r requirements.txt
+python app.py
+
+# Go to http://127.0.0.1:5000

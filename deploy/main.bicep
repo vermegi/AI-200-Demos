@@ -11,6 +11,9 @@ param location string = 'francecentral'
 @description('Principal ID that receives repository permissions on the container registry. Leave empty to skip role assignments.')
 param principalId string = ''
 
+@description('User principal name of the signed-in user that becomes the PostgreSQL Microsoft Entra administrator.')
+param userPrincipalName string
+
 @description('SKU name of the App Service plan hosting the container web app.')
 param appServicePlanSku string = 'P0v3'
 
@@ -35,6 +38,8 @@ var aksName = 'aks-${userHash}'
 var logAnalyticsWorkspaceName = 'log-ai200-${userHash}'
 var cosmosName = take('cosmos-rag-${userHash}', 44)
 var cosmosClientIdentityName = 'id-cosmos-client-${userHash}'
+var postgresName = 'psql-ai200-${userHash}'
+var postgresDatabaseName = 'postgres'
 
 resource resourceGroup 'Microsoft.Resources/resourceGroups@2025-04-01' = {
   name: resourceGroupName
@@ -105,6 +110,18 @@ module containerApps './container-apps.bicep' = {
     embeddingsApiKey: embeddingsApiKey
     location: location
     registryName: registry.outputs.name
+    logAnalyticsWorkspaceName: logAnalytics.outputs.name
+  }
+}
+
+// Shared by all three PostgreSQL exercises; the vector extension is allow-listed up front.
+module postgres './postgresql.bicep' = {
+  scope: az.resourceGroup(resourceGroup.name)
+  params: {
+    name: postgresName
+    location: location
+    administratorObjectId: principalId
+    administratorPrincipalName: userPrincipalName
     logAnalyticsWorkspaceName: logAnalytics.outputs.name
   }
 }
@@ -187,3 +204,7 @@ output cosmosVectorContainer string = cosmos.outputs.vectorContainerName
 output cosmosIndexOptimizationDatabase string = cosmos.outputs.indexOptimizationDatabaseName
 output cosmosIndexOptimizationContainers string[] = cosmos.outputs.indexOptimizationContainerNames
 output cosmosClientIdentityClientId string = cosmos.outputs.clientIdentityClientId
+output postgresServer string = postgres.outputs.name
+output postgresHost string = postgres.outputs.fullyQualifiedDomainName
+output postgresDatabase string = postgresDatabaseName
+output postgresAdmin string = postgres.outputs.administratorPrincipalName

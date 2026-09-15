@@ -1,0 +1,114 @@
+$DB_HOST = $postgresHost
+$DB_NAME = $postgresDatabase
+$DB_USER = $postgresAdmin
+
+$DB_HOST
+$DB_NAME
+$DB_USER 
+
+$DB_PASSWORD = az account get-access-token --resource https://ossrdbms-aad.database.windows.net --query accessToken --output tsv
+
+# Set as environment variables so tools like psql/pgAdmin can pick them up
+$env:DB_HOST = $DB_HOST
+$env:DB_NAME = $DB_NAME
+$env:DB_USER = $DB_USER
+$env:PGPASSWORD = $DB_PASSWORD
+
+
+
+# az postgres flexible-server --help
+# az postgres flexible-server connect -n $postgresServer -u $postgresAdmin -d $postgresDatabase
+
+
+psql "host=$DB_HOST port=5432 dbname=$DB_NAME user=$DB_USER password=$DB_PASSWORD sslmode=require"
+
+SELECT version();
+
+CREATE DATABASE agent_memory;
+\c agent_memory
+
+CREATE TABLE conversations (
+    id BIGSERIAL PRIMARY KEY,
+    session_id UUID NOT NULL UNIQUE,
+    user_id VARCHAR(255) NOT NULL,
+    started_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    ended_at TIMESTAMP WITH TIME ZONE,
+    metadata JSONB DEFAULT '{}'::jsonb
+);
+
+CREATE TABLE messages (
+    id BIGSERIAL PRIMARY KEY,
+    conversation_id BIGINT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+    role VARCHAR(50) NOT NULL CHECK (role IN ('user', 'assistant', 'system', 'tool')),
+    content TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    metadata JSONB DEFAULT '{}'::jsonb
+);
+
+CREATE TABLE task_checkpoints (
+    id BIGSERIAL PRIMARY KEY,
+    conversation_id BIGINT REFERENCES conversations(id) ON DELETE CASCADE,
+    task_name VARCHAR(255) NOT NULL,
+    status VARCHAR(50) NOT NULL CHECK (status IN ('pending', 'in_progress', 'completed', 'failed')),
+    checkpoint_data JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_messages_conversation_id ON messages(conversation_id);
+CREATE INDEX idx_messages_created_at ON messages(created_at);
+CREATE INDEX idx_task_checkpoints_conversation_id ON task_checkpoints(conversation_id);
+CREATE INDEX idx_conversations_session_id ON conversations(session_id);
+
+ALTER TABLE task_checkpoints
+ADD CONSTRAINT unique_conversation_task
+UNIQUE (conversation_id, task_name);
+
+\dt
+
+exit
+
+cd "C:\Users\gvermeiren\github\AI-200-Demos\5. PostGreSQL\postgresql-build-agent-python\agent-backend"
+
+# python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+# pip install -r requirements.txt
+python test_workflow.py
+
+deactivate
+
+
+psql "host=$DB_HOST port=5432 dbname=agent_memory user=$DB_USER password=$DB_PASSWORD sslmode=require"
+
+SELECT id, session_id, started_at, metadata
+FROM conversations
+WHERE user_id = 'user_123'
+ORDER BY started_at DESC;
+
+SELECT c.session_id, m.role, m.content, m.created_at
+FROM messages m
+JOIN conversations c ON m.conversation_id = c.id
+ORDER BY m.created_at DESC
+LIMIT 10;
+
+SELECT
+    c.session_id,
+    t.task_name,
+    t.status,
+    t.checkpoint_data,
+    t.updated_at
+FROM task_checkpoints t
+JOIN conversations c ON t.conversation_id = c.id
+WHERE t.status = 'completed';
+
+SELECT
+    c.id AS conversation_id,
+    m.role,
+    COUNT(*) AS message_count
+FROM conversations c
+JOIN messages m ON c.id = m.conversation_id
+GROUP BY c.id, m.role
+ORDER BY c.id, m.role;
+
+
+exit
