@@ -1,0 +1,144 @@
+$DB_HOST = $postgresHost
+$DB_NAME = $postgresDatabase
+$DB_USER = $postgresAdmin
+
+$DB_HOST
+$DB_NAME
+$DB_USER
+
+$DB_PASSWORD = az account get-access-token --resource https://ossrdbms-aad.database.windows.net --query accessToken --output tsv
+
+# Set as environment variables so tools like psql/pgAdmin can pick them up
+$env:DB_HOST = $DB_HOST
+$env:DB_NAME = $DB_NAME
+$env:DB_USER = $DB_USER
+$env:PGPASSWORD = $DB_PASSWORD
+
+# az postgres flexible-server --help
+# az postgres flexible-server connect -n $postgresServer -u $postgresAdmin -d $postgresDatabase
+
+psql "host=$DB_HOST port=5432 dbname=$DB_NAME user=$DB_USER password=$DB_PASSWORD sslmode=require"
+
+SELECT version();
+
+CREATE EXTENSION IF NOT EXISTS vector;
+
+CREATE TABLE products_optimize (
+    id BIGSERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    category_id INTEGER NOT NULL,
+    price NUMERIC(10,2) NOT NULL,
+    in_stock BOOLEAN DEFAULT true,
+    embedding vector(384)
+);
+
+INSERT INTO products_optimize (name, category_id, price, in_stock, embedding)
+SELECT
+    'Product ' || i,
+    (random() * 20)::int + 1,
+    (random() * 1000)::numeric(10,2),
+    random() > 0.1,
+    ('[' || array_to_string(ARRAY(
+        SELECT (random() * 2 - 1)::float4
+        FROM generate_series(1, 384)
+    ), ',') || ']')::vector
+FROM generate_series(1, 100000) AS i;
+
+SELECT COUNT(*) FROM products_optimize;
+
+CREATE TEMP TABLE query_vectors AS
+SELECT ('[' || array_to_string(ARRAY(
+    SELECT (random() * 2 - 1)::float4
+    FROM generate_series(1, 384)
+), ',') || ']')::vector AS embedding;
+
+EXPLAIN ANALYZE
+SELECT id, name, embedding <=> (SELECT embedding FROM query_vectors) AS distance
+FROM products_optimize
+ORDER BY embedding <=> (SELECT embedding FROM query_vectors)
+LIMIT 10;
+
+EXPLAIN ANALYZE
+SELECT id, name, embedding <=> (SELECT embedding FROM query_vectors) AS distance
+FROM products_optimize
+ORDER BY embedding <=> (SELECT embedding FROM query_vectors)
+LIMIT 10;
+
+CREATE INDEX idx_products_embedding_ivfflat
+ON products_optimize USING ivfflat (embedding vector_cosine_ops)
+WITH (lists = 100);
+
+EXPLAIN ANALYZE
+SELECT id, name, embedding <=> (SELECT embedding FROM query_vectors) AS distance
+FROM products_optimize
+ORDER BY embedding <=> (SELECT embedding FROM query_vectors)
+LIMIT 10;
+
+SET ivfflat.probes = 1;
+EXPLAIN ANALYZE
+SELECT id, name, embedding <=> (SELECT embedding FROM query_vectors) AS distance
+FROM products_optimize
+ORDER BY embedding <=> (SELECT embedding FROM query_vectors)
+LIMIT 10;
+
+SET ivfflat.probes = 50;
+EXPLAIN ANALYZE
+SELECT id, name, embedding <=> (SELECT embedding FROM query_vectors) AS distance
+FROM products_optimize
+ORDER BY embedding <=> (SELECT embedding FROM query_vectors)
+LIMIT 10;
+
+DROP INDEX idx_products_embedding_ivfflat;
+
+SET maintenance_work_mem = '256MB';
+
+CREATE INDEX idx_products_embedding_hnsw
+ON products_optimize USING hnsw (embedding vector_cosine_ops)
+WITH (m = 16, ef_construction = 64);
+
+EXPLAIN ANALYZE
+SELECT id, name, embedding <=> (SELECT embedding FROM query_vectors) AS distance
+FROM products_optimize
+ORDER BY embedding <=> (SELECT embedding FROM query_vectors)
+LIMIT 10;
+
+SET hnsw.ef_search = 20;
+EXPLAIN ANALYZE
+SELECT id, name, embedding <=> (SELECT embedding FROM query_vectors) AS distance
+FROM products_optimize
+ORDER BY embedding <=> (SELECT embedding FROM query_vectors)
+LIMIT 10;
+
+SET hnsw.ef_search = 100;
+EXPLAIN ANALYZE
+SELECT id, name, embedding <=> (SELECT embedding FROM query_vectors) AS distance
+FROM products_optimize
+ORDER BY embedding <=> (SELECT embedding FROM query_vectors)
+LIMIT 10;
+
+CREATE INDEX idx_products_category ON products_optimize (category_id);
+
+EXPLAIN ANALYZE
+SELECT id, name, embedding <=> (SELECT embedding FROM query_vectors) AS distance
+FROM products_optimize
+WHERE category_id = 5
+ORDER BY embedding <=> (SELECT embedding FROM query_vectors)
+LIMIT 10;
+
+EXPLAIN ANALYZE
+SELECT id, name, embedding <=> (SELECT embedding FROM query_vectors) AS distance
+FROM products_optimize
+WHERE category_id = 5 AND price BETWEEN 100 AND 200
+ORDER BY embedding <=> (SELECT embedding FROM query_vectors)
+LIMIT 10;
+
+CREATE INDEX idx_products_category_price ON products_optimize (category_id, price);
+
+EXPLAIN ANALYZE
+SELECT id, name, embedding <=> (SELECT embedding FROM query_vectors) AS distance
+FROM products_optimize
+WHERE category_id = 5 AND price BETWEEN 100 AND 200
+ORDER BY embedding <=> (SELECT embedding FROM query_vectors)
+LIMIT 10;
+
+exit
