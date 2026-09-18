@@ -1,0 +1,5 @@
+Expand-Archive `
+    -Path 'C:\Users\gvermeiren\github\AI-200-Demos\mslearn-azure-ai\downloads\python\service-bus-python.zip' `
+    -DestinationPath 'c:\Users\gvermeiren\github\AI-200-Demos\7. Integrate\service-bus-python' `
+    -Force
+    
