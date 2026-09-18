@@ -41,6 +41,7 @@ var cosmosClientIdentityName = 'id-cosmos-client-${userHash}'
 var postgresName = 'psql-ai200-${userHash}'
 var postgresDatabaseName = 'postgres'
 var redisName = 'amr-exercise-${userHash}'
+var serviceBusName = 'sbns-exercise-${userHash}'
 
 resource resourceGroup 'Microsoft.Resources/resourceGroups@2025-04-01' = {
   name: resourceGroupName
@@ -136,6 +137,15 @@ module redis './redis.bicep' = {
   }
 }
 
+module serviceBus './service-bus.bicep' = {
+  scope: az.resourceGroup(resourceGroup.name)
+  params: {
+    name: serviceBusName
+    location: location
+    userPrincipalId: principalId
+  }
+}
+
 module foundry './foundry.bicep' = {
   scope: az.resourceGroup(resourceGroup.name)
   params: {
@@ -223,3 +233,11 @@ output redisHost string = redis.outputs.hostName
 output redisDatabase string = redis.outputs.databaseName
 output redisPort int = redis.outputs.databasePort
 output redisAccessAssignment string = redis.outputs.accessAssignmentName
+output serviceBusNamespace string = serviceBus.outputs.name
+output serviceBusResourceId string = serviceBus.outputs.resourceId
+output serviceBusFqdn string = serviceBus.outputs.fullyQualifiedDomainName
+output serviceBusQueue string = serviceBus.outputs.queueName
+output serviceBusTopic string = serviceBus.outputs.topicName
+output serviceBusNotificationsSubscription string = serviceBus.outputs.notificationsSubscriptionName
+output serviceBusHighPrioritySubscription string = serviceBus.outputs.highPrioritySubscriptionName
+output serviceBusHighPriorityRule string = serviceBus.outputs.highPriorityRuleName

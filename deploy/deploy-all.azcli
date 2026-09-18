@@ -68,6 +68,14 @@ $redisHost = $outputs.redisHost.value
 $redisDatabase = $outputs.redisDatabase.value
 $redisPort = $outputs.redisPort.value
 $redisAccessAssignment = $outputs.redisAccessAssignment.value
+$serviceBusNamespace = $outputs.serviceBusNamespace.value
+$serviceBusResourceId = $outputs.serviceBusResourceId.value
+$serviceBusFqdn = $outputs.serviceBusFqdn.value
+$serviceBusQueue = $outputs.serviceBusQueue.value
+$serviceBusTopic = $outputs.serviceBusTopic.value
+$serviceBusNotificationsSubscription = $outputs.serviceBusNotificationsSubscription.value
+$serviceBusHighPrioritySubscription = $outputs.serviceBusHighPrioritySubscription.value
+$serviceBusHighPriorityRule = $outputs.serviceBusHighPriorityRule.value
 
 echo $rg
 echo $acrName
@@ -115,6 +123,14 @@ echo $redisHost
 echo $redisDatabase
 echo $redisPort
 echo $redisAccessAssignment
+echo $serviceBusNamespace
+echo $serviceBusResourceId
+echo $serviceBusFqdn
+echo $serviceBusQueue
+echo $serviceBusTopic
+echo $serviceBusNotificationsSubscription
+echo $serviceBusHighPrioritySubscription
+echo $serviceBusHighPriorityRule
 
 
 $privateEndpointConnectionName = az network private-endpoint-connection list `

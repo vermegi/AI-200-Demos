@@ -1,0 +1,18 @@
+$SERVICE_BUS_FQDN = $serviceBusFqdn
+
+$SERVICE_BUS_FQDN
+
+# Set as an environment variable so the Python app can connect to Azure Service Bus.
+$env:SERVICE_BUS_FQDN = $SERVICE_BUS_FQDN
+
+# Configure the Python environment.
+cd "C:\Users\gvermeiren\github\AI-200-Demos\7. Integrate\service-bus-python\client"
+
+# python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+# pip install -r requirements.txt
+
+# Run the Service Bus Flask app.
+python app.py
+
+deactivate
