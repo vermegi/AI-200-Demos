@@ -1,4 +1,5 @@
 # Variables
+$repoRoot = Get-Location
 $userHash = "20260616"
 $rg = "rg-AI200-$userHash"
 $location = "francecentral"
@@ -14,7 +15,7 @@ $acrName = "acr$userHash"
 $aksName = "aks-$userHash"
 $cosmosClientIdentityClientId = "id-cosmos-client-$userHash"
 
-cd 'C:\Users\gvermeiren\github\AI-200-Demos\4. Cosmos'
+cd (Join-Path $repoRoot "4. Cosmos")
 
 # az login
 # az account set --subscription "<subscription-id-or-name>"
@@ -57,7 +58,7 @@ $cosmosDatabase
 $cosmosContainer
 
 
-cd 'C:\Users\gvermeiren\github\AI-200-Demos\4. Cosmos'
+cd (Join-Path $repoRoot "4. Cosmos")
 
 
 ####################################################################

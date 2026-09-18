@@ -1,14 +1,16 @@
+$repoRoot = Get-Location
+
 Expand-Archive `
-    -Path 'C:\Users\gvermeiren\github\AI-200-Demos\mslearn-azure-ai\downloads\python\amr-data-operations-python.zip' `
-    -DestinationPath 'c:\Users\gvermeiren\github\AI-200-Demos\6. Redis\amr-data-operations-python' `
+    -Path (Join-Path $repoRoot "mslearn-azure-ai\downloads\python\amr-data-operations-python.zip") `
+    -DestinationPath (Join-Path $repoRoot "6. Redis\amr-data-operations-python") `
     -Force
 
 Expand-Archive `
-    -Path 'C:\Users\gvermeiren\github\AI-200-Demos\mslearn-azure-ai\downloads\python\amr-pub-sub-python.zip' `
-    -DestinationPath 'c:\Users\gvermeiren\github\AI-200-Demos\6. Redis\amr-pub-sub-python' `
+    -Path (Join-Path $repoRoot "mslearn-azure-ai\downloads\python\amr-pub-sub-python.zip") `
+    -DestinationPath (Join-Path $repoRoot "6. Redis\amr-pub-sub-python") `
     -Force
 
 Expand-Archive `
-    -Path 'C:\Users\gvermeiren\github\AI-200-Demos\mslearn-azure-ai\downloads\python\amr-vector-query-python.zip' `
-    -DestinationPath 'c:\Users\gvermeiren\github\AI-200-Demos\6. Redis\amr-vector-query-python' `
+    -Path (Join-Path $repoRoot "mslearn-azure-ai\downloads\python\amr-vector-query-python.zip") `
+    -DestinationPath (Join-Path $repoRoot "6. Redis\amr-vector-query-python") `
     -Force

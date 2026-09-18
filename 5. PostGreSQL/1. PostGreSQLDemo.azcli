@@ -1,3 +1,4 @@
+$repoRoot = Get-Location
 $DB_HOST = $postgresHost
 $DB_NAME = $postgresDatabase
 $DB_USER = $postgresAdmin
@@ -68,7 +69,7 @@ UNIQUE (conversation_id, task_name);
 
 exit
 
-cd "C:\Users\gvermeiren\github\AI-200-Demos\5. PostGreSQL\postgresql-build-agent-python\agent-backend"
+cd (Join-Path $repoRoot "5. PostGreSQL\postgresql-build-agent-python\agent-backend")
 
 # python -m venv .venv
 .\.venv\Scripts\Activate.ps1

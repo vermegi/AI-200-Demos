@@ -1,3 +1,4 @@
+$repoRoot = Get-Location
 $DB_HOST = $postgresHost
 $DB_NAME = $postgresDatabase
 $DB_USER = $postgresAdmin
@@ -47,7 +48,7 @@ LIMIT 5;
 
 exit
 
-cd "C:\Users\gvermeiren\github\AI-200-Demos\5. PostGreSQL\postgresql-vector-search-python\client"
+cd (Join-Path $repoRoot "5. PostGreSQL\postgresql-vector-search-python\client")
 
 # python -m venv .venv
 # .\.venv\Scripts\Activate.ps1

@@ -1,4 +1,5 @@
 # Variables
+$repoRoot = Get-Location
 $userHash = "20260902"
 $rg = "rg-AI200-$userHash"
 $location = "francecentral"
@@ -8,7 +9,7 @@ $aksName = "aks-$userHash"
 $foundryName = "foundry-resource-$userHash"
 $foundryProjectName = "foundry-project-$userHash"
 
-cd 'C:\Users\gvermeiren\github\AI-200-Demos\3. AKS'
+cd (Join-Path $repoRoot "3. AKS")
 
 # Build and push the API image with an ACR Task.
 # This uses the caller's existing ACR permissions; admin user credentials are not required.
@@ -53,7 +54,7 @@ echo $apiExternalIp
 Set-Content -Path .\\aks-configure-python\\client\\.env -Value "API_ENDPOINT=http://$apiExternalIp"
 
 
-cd 'C:\Users\gvermeiren\github\AI-200-Demos\3. AKS\aks-configure-python\client'
+cd (Join-Path $repoRoot "3. AKS\aks-configure-python\client")
 
 # python -m venv labenv
 

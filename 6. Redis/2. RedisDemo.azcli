@@ -3,6 +3,7 @@
 # https://microsoftlearning.github.io/mslearn-azure-ai/instructions/azure-managed-redis/02-amr-pub-sub.html
 
 # Use the values captured by deploy\deploy-all.azcli.
+$repoRoot = Get-Location
 $REDIS_HOST = $redisHost
 $REDIS_PORT = $redisPort
 $REDIS_DATABASE = $redisDatabase
@@ -17,7 +18,7 @@ $env:REDIS_PORT = $REDIS_PORT
 $env:REDIS_DATABASE = $REDIS_DATABASE
 
 # Configure the Python environment.
-cd "C:\Users\gvermeiren\github\AI-200-Demos\6. Redis\amr-pub-sub-python\client"
+cd (Join-Path $repoRoot "6. Redis\amr-pub-sub-python\client")
 
 # Create the virtual environment once for this sample.
 # python -m venv .venv

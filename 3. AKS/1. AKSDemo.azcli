@@ -1,4 +1,5 @@
 # Variables
+$repoRoot = Get-Location
 $userHash = "20260616"
 $rg = "rg-AI200-$userHash"
 $location = "francecentral"
@@ -8,7 +9,7 @@ $aksCluster = "aks-$userHash"
 $foundryAccount = "foundry-resource-$userHash"
 $foundryProjectName = "foundry-project-$userHash"
 
-cd 'C:\Users\gvermeiren\github\AI-200-Demos\3. AKS'
+cd (Join-Path $repoRoot "3. AKS")
 
 # Confirm that the existing resources are in the expected resource group.
 az group show --name $rg
@@ -72,7 +73,7 @@ kubectl get service aks-api-service
 # CHANGE API_ENDPOINT in .env to http://external_IP 
 # NEW TERMINAL
 
-cd 'C:\Users\gvermeiren\github\AI-200-Demos\3. AKS\aks-deploy-python\client'
+cd (Join-Path $repoRoot "3. AKS\aks-deploy-python\client")
 
 # python -m venv labenv
 

@@ -1,3 +1,4 @@
+$repoRoot = Get-Location
 $userHash = "20260902"
 $location = "francecentral"
 $embeddingsApiKey = "demo-key-12345"
@@ -9,7 +10,7 @@ $myId = az ad signed-in-user show --query id --output tsv
 $myUpn = az ad signed-in-user show --query userPrincipalName --output tsv
 $myId
 $myUpn
-$templateFile = Join-Path (Get-Location) "deploy\main.bicep"
+$templateFile = Join-Path $repoRoot "deploy\main.bicep"
 echo $templateFile
 $deploymentName = "deploy-all-$userHash"
 $deploymentName
