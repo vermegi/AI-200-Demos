@@ -1,0 +1,89 @@
+# Implement Semantic Search in Azure Managed Redis
+# Microsoft Learn:
+# https://microsoftlearning.github.io/mslearn-azure-ai/instructions/azure-managed-redis/03-amr-vector-storage.html
+
+# Use the values captured by deploy\deploy-all.azcli.
+$REDIS_HOST = $redisHost
+$REDIS_PORT = $redisPort
+$REDIS_DATABASE = $redisDatabase
+
+$REDIS_HOST
+$REDIS_PORT
+$REDIS_DATABASE
+
+# Set the endpoint values as environment variables for the Flask app.
+$env:REDIS_HOST = $REDIS_HOST
+$env:REDIS_PORT = $REDIS_PORT
+$env:REDIS_DATABASE = $REDIS_DATABASE
+
+# Configure the Python environment.
+cd "C:\Users\gvermeiren\github\AI-200-Demos\6. Redis\amr-vector-query-python\client"
+
+# DON'T USE THIS ONE!!! IT'S THE WRONG PYTHON VERSION FOR numpyCreate the virtual environment once for this sample.
+# python -m venv .venv
+# USE THIS INSTEAD!!!
+# py install 3.12
+# py -3.12 -m venv .venv
+
+# Activate the environment. Use source .venv/bin/activate on Bash.
+.\.venv\Scripts\Activate.ps1
+
+# Install Flask, NumPy, redis-py, Microsoft Entra authentication, and dependencies.
+# pip install -r requirements.txt
+
+# Run the Flask application.
+python app.py
+
+# Open http://localhost:5000 in a browser.
+
+# Vector search concepts:
+# An embedding represents an item as a list of numbers. Similar items have
+# vectors that are close together according to a distance metric such as cosine.
+# Redis stores the vector bytes in a hash and RediSearch finds nearby vectors.
+
+# Load sample data and perform a similarity search.
+# 1. Select Load Sample Products in Data Operations.
+# 2. Select List All Products and confirm product keys appear in the results.
+# 3. Enter product:001 in Similarity Search, set top_k to 5, and select Find Similar.
+# 4. Review the matching products and their distance scores.
+
+# Store a new product and search again.
+# Select Store Product with these values:
+# Product key: product:011
+# Embedding: [0.53, 0.63, 0.58, 0.37, 0.68, 0.47, 0.73, 0.57]
+# Metadata:
+# product_id=011
+# name=Gym Bag
+# category=Sports
+
+# Search for product:009 and review how the similarity ordering changes after
+# the new vector is added.
+
+# Remove a product.
+# Enter product:011 in Remove Product and select Remove.
+# Select List All Products and confirm product:011 is no longer listed.
+
+# What the application does behind the scenes:
+# - Creates a RediSearch index with text fields and an embedding vector field.
+# - Uses HNSW, an approximate nearest-neighbor algorithm, for fast search.
+# - Stores vectors as FLOAT32 values with eight dimensions.
+# - Uses cosine distance to compare the query vector with product vectors.
+# - Uses the product: key prefix so the index includes product hashes.
+
+# Stop the Flask app with Ctrl+C before continuing.
+
+# Deactivate the virtual environment when finished.
+deactivate
+
+# Clean up the Azure resources when the exercise is complete.
+# WARNING: This deletes the entire resource group and all resources inside it.
+# az group delete --name $rg --no-wait --yes
+
+# Troubleshooting reminders:
+# - Confirm the Redis cluster and database provisioning states are Succeeded.
+# - Confirm the database was created with the RediSearch module enabled.
+# - Confirm the Microsoft Entra data access assignment completed successfully.
+# - Load sample products before running a similarity search.
+# - Verify that the query product key exists in List All Products.
+# - Embeddings must contain eight numeric values for this sample index.
+# - Run . .\.env.ps1 only when using the original lab-generated environment file.

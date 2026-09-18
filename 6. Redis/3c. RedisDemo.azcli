@@ -1,0 +1,134 @@
+# Choosing Redis Vector Types and Indexing Strategies
+# Microsoft Learn:
+# https://learn.microsoft.com/en-us/training/modules/implement-vector-storage-azure-managed-redis/3-vector-types-index-strategy
+
+# Vector configuration affects search accuracy, memory use, and query speed.
+# Choose a data type, dimension, distance metric, and indexing algorithm that
+# match the embedding model and the size of the application.
+
+from redis.commands.search.field import VectorField
+from redis.commands.search.query import Query
+import time
+
+# Choosing a vector data type.
+# FLOAT32 uses four bytes per dimension and is the usual choice for AI
+# embeddings. FLOAT64 uses eight bytes per dimension and is mainly useful when
+# specialized research requires extra numerical precision.
+VectorField(
+    "embedding",
+    "HNSW",
+    {
+        "TYPE": "FLOAT32",
+        "DIM": 1536,
+        "DISTANCE_METRIC": "COSINE",
+    },
+)
+
+# Matching embedding dimensions.
+# The index DIM must equal the number of values produced by the model.
+embedding_models = {
+    "small-model": 384,
+    "medium-model": 768,
+    "large-model": 1536,
+    "xlarge-model": 3072,
+}
+
+VectorField(
+    "embedding",
+    "HNSW",
+    {
+        "TYPE": "FLOAT32",
+        "DIM": embedding_models["large-model"],
+        "DISTANCE_METRIC": "COSINE",
+    },
+)
+
+# A dimension mismatch prevents Redis from calculating a meaningful distance and
+# can cause ingestion or query errors. Check the embedding model documentation.
+
+# Distance metrics for different data.
+# COSINE compares the angle between vectors and is common for text embeddings.
+# L2 measures straight-line distance and can suit image or spatial embeddings.
+# IP (inner product) is intended for pre-normalized vectors or specialized models.
+text_vector = VectorField(
+    "embedding",
+    "HNSW",
+    {
+        "TYPE": "FLOAT32",
+        "DIM": 1536,
+        "DISTANCE_METRIC": "COSINE",
+    },
+)
+
+image_vector = VectorField(
+    "image_embedding",
+    "HNSW",
+    {
+        "TYPE": "FLOAT32",
+        "DIM": 768,
+        "DISTANCE_METRIC": "L2",
+    },
+)
+
+# FLAT indexing for exact search.
+# FLAT compares the query with every stored vector. It gives exact nearest
+# neighbors and works well for small datasets or when perfect accuracy matters.
+flat_vector = VectorField(
+    "embedding",
+    "FLAT",
+    {
+        "TYPE": "FLOAT32",
+        "DIM": 1536,
+        "DISTANCE_METRIC": "COSINE",
+    },
+)
+
+# HNSW indexing for approximate search.
+# HNSW uses a graph to skip many unrelated vectors. It is usually much faster
+# for large datasets, with a small trade-off in exactness.
+hnsw_vector = VectorField(
+    "embedding",
+    "HNSW",
+    {
+        "TYPE": "FLOAT32",
+        "DIM": 1536,
+        "DISTANCE_METRIC": "COSINE",
+    },
+)
+
+# Tuning HNSW query effort.
+# EF_RUNTIME controls how much of the graph Redis explores for one query. Higher
+# values can improve recall but increase latency.
+tuned_query = Query(
+    "*=>[KNN 10 @embedding $query_vec EF_RUNTIME 100 AS score]"
+).dialect(2)
+
+# Quick configuration guide:
+# - Small text search: FLOAT32, COSINE, FLAT.
+# - Large text search: FLOAT32, COSINE, HNSW.
+# - Image similarity: FLOAT32, L2, HNSW.
+# - Recommendations: FLOAT32, COSINE, HNSW.
+
+# Benchmark HNSW settings with real queries.
+# The best setting depends on vector distribution, hardware, and latency needs.
+for ef_runtime in [50, 100, 200]:
+    query = Query(
+        f"*=>[KNN 10 @embedding $query_vec EF_RUNTIME {ef_runtime} AS score]"
+    ).return_fields("id", "score").dialect(2)
+
+    start = time.time()
+    results = redis_client.ft("idx:docs").search(
+        query,
+        query_params={"query_vec": query_vector.tobytes()},
+    )
+    latency = (time.time() - start) * 1000
+
+    print(f"EF_RUNTIME={ef_runtime}: {latency:.2f}ms")
+
+# Practical checks before production:
+# - Confirm the model's output dimension before creating the index.
+# - Use FLOAT32 unless a specialized workload needs FLOAT64 precision.
+# - Match the distance metric to the model's training objective.
+# - Start with FLAT for small datasets and HNSW for large datasets.
+# - Measure latency and result quality with representative queries.
+# - Increase EF_RUNTIME only when better recall justifies extra latency.
