@@ -63,6 +63,11 @@ $postgresServer = $outputs.postgresServer.value
 $postgresHost = $outputs.postgresHost.value
 $postgresDatabase = $outputs.postgresDatabase.value
 $postgresAdmin = $outputs.postgresAdmin.value
+$redisCluster = $outputs.redisCluster.value
+$redisHost = $outputs.redisHost.value
+$redisDatabase = $outputs.redisDatabase.value
+$redisPort = $outputs.redisPort.value
+$redisAccessAssignment = $outputs.redisAccessAssignment.value
 
 echo $rg
 echo $acrName
@@ -105,6 +110,11 @@ echo $postgresServer
 echo $postgresHost
 echo $postgresDatabase
 echo $postgresAdmin
+echo $redisCluster
+echo $redisHost
+echo $redisDatabase
+echo $redisPort
+echo $redisAccessAssignment
 
 
 $privateEndpointConnectionName = az network private-endpoint-connection list `

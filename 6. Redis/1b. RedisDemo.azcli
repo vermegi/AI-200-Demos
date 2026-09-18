@@ -1,0 +1,155 @@
+# Implement Data Operations in Azure Managed Redis
+# Microsoft Learn:
+# https://learn.microsoft.com/en-us/training/modules/implement-data-operations-azure-managed-redis/4-implement-data-operations
+
+# Connection with Microsoft Entra ID authentication.
+import os
+import redis
+from redis_entraid.cred_provider import create_from_default_azure_credential
+
+credential_provider = create_from_default_azure_credential(
+    ("https://redis.azure.com/.default",),
+)
+r = redis.Redis(
+    host=os.getenv("REDIS_HOST"),
+    port=10000,
+    ssl=True,
+    decode_responses=True,
+    credential_provider=credential_provider,
+)
+
+# SET and GET operations.
+r.set("user:1001:name", "Alice Smith")
+name = r.get("user:1001:name")
+print(name)
+
+# Hash operations.
+# A hash is like a small dictionary stored inside Redis. It has one key
+# (user:1001) and several fields (name, email, and age). This keeps related
+# values together instead of creating a separate Redis key for every field.
+# HGET reads one field; HGETALL reads the complete hash.
+r.hset(
+    "user:1001",
+    mapping={
+        "name": "Alice Smith",
+        "email": "alice@example.com",
+        "age": "28",
+    },
+)
+name = r.hget("user:1001", "name")
+user_data = r.hgetall("user:1001")
+
+# Multiple key operations.
+# MSET writes several simple key-value pairs at once, and MGET reads them at
+# once. A single call is usually faster than making one network request per
+# key. These commands work with separate string keys, not fields in one hash.
+r.mset({
+    "user:1001:name": "Alice Smith",
+    "user:1001:email": "alice@example.com",
+    "user:1001:age": "28",
+})
+values = r.mget(
+    "user:1001:name",
+    "user:1001:email",
+    "user:1001:age",
+)
+
+# Pipeline operations for hashes.
+# A pipeline is a queue of Redis commands. The client sends the queued commands
+# together and execute() returns their results in the same order. This reduces
+# network trips when reading many keys. A pipeline is not automatically a
+# transaction: use transaction support when all commands must succeed together.
+pipe = r.pipeline()
+pipe.hgetall("user:1001")
+pipe.hgetall("user:1002")
+results = pipe.execute()
+
+# Check key existence.
+if r.exists("user:1001:name"):
+    print("Key exists")
+existing_count = r.exists("user:1001:name", "user:9999:name")
+
+# Delete operations.
+deleted = r.delete("user:1001:name", "user:1001:email")
+print(f"Keys deleted: {deleted}")
+
+# Set a value with expiration.
+r.setex("session:abc123", 60, "user_data")
+r.psetex("temp:data", 5000, "temporary_value")
+
+# Add expiration to an existing key.
+r.set("user:1002:preferences", "dark_mode")
+r.expire("user:1002:preferences", 3600)
+r.pexpire("user:1002:preferences", 3600000)
+
+# Check and manage TTL.
+ttl = r.ttl("user:1002:preferences")
+if ttl == -1:
+    print("Key has no expiration")
+elif ttl == -2:
+    print("Key does not exist")
+else:
+    print(f"Key expires in {ttl} seconds")
+r.persist("user:1002:preferences")
+
+# Time-based cache invalidation.
+# Invalidation means removing or replacing cached data when it is no longer
+# trustworthy. With a time-based approach, Redis deletes a key automatically
+# when its TTL (time to live) reaches zero. A later request treats it as a
+# cache miss and loads fresh data, but a short TTL can increase database calls.
+def cache_database_query(query_key, query_function, ttl=300):
+    cached_result = r.get(query_key)
+    if cached_result:
+        return cached_result
+    result = query_function()
+    r.setex(query_key, ttl, result)
+    return result
+
+# Manual invalidation on update.
+def update_user_profile(user_id, new_data):
+    save_to_database(user_id, new_data)
+    r.delete(
+        f"user:{user_id}:profile",
+        f"user:{user_id}:summary",
+        f"dashboard:user:{user_id}",
+    )
+
+# Cache-aside pattern.
+def get_user_data(user_id, ttl=3600):
+    cache_key = f"user:{user_id}:data"
+    cached_data = r.get(cache_key)
+    if cached_data:
+        return cached_data
+    user_data = fetch_from_database(user_id)
+    if user_data:
+        r.setex(cache_key, ttl, user_data)
+    return user_data
+
+# Pattern-based invalidation using SCAN.
+# Sometimes one update affects many keys, such as user:1001:profile and
+# user:1001:summary. SCAN finds those keys gradually by pattern. It is safer
+# than KEYS because KEYS can pause a busy Redis server while it searches every
+# key. SCAN may need several iterations and can see keys change while scanning.
+def invalidate_user_cache(user_id):
+    pattern = f"user:{user_id}:*"
+    cursor = 0
+    deleted_count = 0
+    while True:
+        cursor, keys = r.scan(cursor, match=pattern, count=100)
+        if keys:
+            deleted_count += r.delete(*keys)
+        if cursor == 0:
+            break
+    return deleted_count
+
+# Redis data types: lists support queues and numeric values support counters.
+# A list is an ordered collection of values. RPUSH adds to the right and LPOP
+# removes from the left, creating a first-in, first-out (FIFO) queue. Lists can
+# also model a last-in, first-out (LIFO) stack by adding and removing from the
+# same end. INCR changes a numeric value atomically, so counters and rate limits
+# do not need a risky read-then-write sequence in application code.
+r.rpush("jobs", "job-001")
+next_job = r.lpop("jobs")
+request_count = r.incr("metrics:requests")
+
+# Best practices: use pooling, handle errors, and choose suitable TTLs.

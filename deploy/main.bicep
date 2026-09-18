@@ -40,6 +40,7 @@ var cosmosName = take('cosmos-rag-${userHash}', 44)
 var cosmosClientIdentityName = 'id-cosmos-client-${userHash}'
 var postgresName = 'psql-ai200-${userHash}'
 var postgresDatabaseName = 'postgres'
+var redisName = 'amr-exercise-${userHash}'
 
 resource resourceGroup 'Microsoft.Resources/resourceGroups@2025-04-01' = {
   name: resourceGroupName
@@ -126,6 +127,15 @@ module postgres './postgresql.bicep' = {
   }
 }
 
+module redis './redis.bicep' = {
+  scope: az.resourceGroup(resourceGroup.name)
+  params: {
+    name: redisName
+    location: location
+    userPrincipalId: principalId
+  }
+}
+
 module foundry './foundry.bicep' = {
   scope: az.resourceGroup(resourceGroup.name)
   params: {
@@ -208,3 +218,8 @@ output postgresServer string = postgres.outputs.name
 output postgresHost string = postgres.outputs.fullyQualifiedDomainName
 output postgresDatabase string = postgresDatabaseName
 output postgresAdmin string = postgres.outputs.administratorPrincipalName
+output redisCluster string = redis.outputs.name
+output redisHost string = redis.outputs.hostName
+output redisDatabase string = redis.outputs.databaseName
+output redisPort int = redis.outputs.databasePort
+output redisAccessAssignment string = redis.outputs.accessAssignmentName
