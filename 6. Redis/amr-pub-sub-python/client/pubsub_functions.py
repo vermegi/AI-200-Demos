@@ -24,16 +24,50 @@ AVAILABLE_CHANNELS = [
 
 
 # BEGIN CONNECTION CODE SECTION
+def get_client() -> redis.Redis:
+    """Create a Redis client for Azure Managed Redis using Microsoft Entra ID."""
+    redis_host = os.environ.get("REDIS_HOST")
 
+    if not redis_host:
+        raise ValueError("REDIS_HOST environment variable must be set")
 
+    # create_from_default_azure_credential uses DefaultAzureCredential to
+    # acquire a Microsoft Entra token for Redis. The credential provider
+    # refreshes the token automatically in the background so long-lived
+    # connections (like the pub/sub listener) stay authenticated.
+    credential_provider = create_from_default_azure_credential(
+        ("https://redis.azure.com/.default",),
+    )
 
+    return redis.Redis(
+        host=redis_host,
+        port=10000,
+        ssl=True,
+        decode_responses=True,
+        credential_provider=credential_provider,
+        socket_timeout=30,
+        socket_connect_timeout=30,
+    )
 # END CONNECTION CODE SECTION
 
 
 # BEGIN PUBLISH MESSAGE CODE SECTION
+def publish_order_created(r: redis.Redis) -> dict:
+    """Publish an order created event to the 'orders:created' channel."""
+    order_data = {
+        "event": "order_created",
+        "order_id": f"ORD-{datetime.now().strftime('%Y%m%d%H%M%S')}",
+        "customer": "Jane Doe",
+        "total": 129.99,
+        "timestamp": datetime.now().isoformat(),
+    }
+    channel = "orders:created"
 
+    # publish() sends the message to every subscriber of the channel and
+    # returns the number of subscribers that received it.
+    subscribers = r.publish(channel, json.dumps(order_data))
 
-
+    return {"channel": channel, "subscribers": subscribers, "message": order_data}
 # END PUBLISH MESSAGE CODE SECTION
 
 
@@ -82,16 +116,66 @@ def publish_notification(r: redis.Redis) -> dict:
 
 
 # BEGIN BROADCAST CODE SECTION
+def broadcast_to_all(r: redis.Redis) -> dict:
+    """Broadcast the same message to every channel using publish() in a loop."""
+    announcement = {
+        "event": "system_announcement",
+        "message": "System maintenance scheduled for 2 AM",
+        "priority": "high",
+        "timestamp": datetime.now().isoformat(),
+    }
+    message = json.dumps(announcement)
 
+    results = []
+    total_subscribers = 0
+    for channel in AVAILABLE_CHANNELS:
+        # Send the same message to multiple channels for multi-channel delivery.
+        count = r.publish(channel, message)
+        total_subscribers += count
+        results.append({"channel": channel, "subscribers": count})
 
-
+    return {
+        "channels": results,
+        "total_subscribers": total_subscribers,
+        "message": announcement,
+    }
 # END BROADCAST CODE SECTION
 
 
 # BEGIN MESSAGE FORMATTING CODE SECTION
+def format_message(message: dict) -> dict:
+    """Parse a pub/sub message and extract relevant fields for display."""
+    timestamp = datetime.now().strftime("%H:%M:%S")
+    channel = message.get("channel", "unknown")
+    pattern = message.get("pattern")
 
+    try:
+        data = json.loads(message["data"])
+    except (json.JSONDecodeError, TypeError):
+        # Non-JSON payloads are returned as-is under a "raw" key.
+        return {
+            "timestamp": timestamp,
+            "channel": channel,
+            "pattern": pattern,
+            "event": None,
+            "details": {"raw": message.get("data")},
+        }
 
+    # Pull out the fields that the demo events include so the UI can
+    # display a clean summary of each message.
+    field_names = [
+        "order_id", "customer", "total", "tracking_number",
+        "product_name", "current_stock", "message",
+    ]
+    details = {name: data[name] for name in field_names if name in data}
 
+    return {
+        "timestamp": timestamp,
+        "channel": channel,
+        "pattern": pattern,
+        "event": data.get("event", "unknown"),
+        "details": details,
+    }
 # END MESSAGE FORMATTING CODE SECTION
 
 
@@ -141,9 +225,30 @@ class PubSubManager:
             self._counter = 0
 
     # BEGIN MESSAGE LISTENER CODE SECTION
+    def listen_messages(self) -> None:
+        """Background thread that reads messages from subscribed channels."""
+        self.listener_active = True
+        try:
+            # listen() blocks and yields messages as they are published.
+            for message in self.pubsub.listen():
+                if not self.listening:
+                    break
 
+                # Handle both direct channel messages and pattern messages.
+                if message["type"] in ("message", "pmessage"):
+                    self._add_message(format_message(message))
 
-
+        except Exception as e:
+            if self.listening:
+                self._add_message({
+                    "timestamp": datetime.now().strftime("%H:%M:%S"),
+                    "channel": "system",
+                    "pattern": None,
+                    "event": "listener_error",
+                    "details": {"error": str(e)},
+                })
+        finally:
+            self.listener_active = False
     # END MESSAGE LISTENER CODE SECTION
 
     def restart_listener(self, clear_subs: bool = False) -> None:
@@ -191,9 +296,17 @@ class PubSubManager:
         self.listener_thread.start()
 
     # BEGIN SUBSCRIBE CHANNEL/PATTERN CODE SECTION
+    def subscribe_to_channel(self, channel: str) -> str:
+        """Subscribe to a specific channel using subscribe()."""
+        self.pubsub.subscribe(channel)  # Register interest in the channel.
+        self.restart_listener()
+        return f"Subscribed to channel: {channel}"
 
-
-
+    def subscribe_to_pattern(self, pattern: str) -> str:
+        """Subscribe using a pattern with psubscribe() (e.g. 'orders:*')."""
+        self.pubsub.psubscribe(pattern)  # Register interest in matching channels.
+        self.restart_listener()
+        return f"Subscribed to pattern: {pattern}"
     # END SUBSCRIBE CHANNEL/PATTERN CODE SECTION
 
     def unsubscribe_from_channel(self, channel: str) -> str:

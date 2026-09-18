@@ -1,0 +1,68 @@
+# Publish and subscribe to events in Azure Managed Redis
+# Microsoft Learn:
+# https://microsoftlearning.github.io/mslearn-azure-ai/instructions/azure-managed-redis/02-amr-pub-sub.html
+
+# Use the values captured by deploy\deploy-all.azcli.
+$REDIS_HOST = $redisHost
+$REDIS_PORT = $redisPort
+$REDIS_DATABASE = $redisDatabase
+
+$REDIS_HOST
+$REDIS_PORT
+$REDIS_DATABASE
+
+# Set the endpoint values as environment variables for the Flask app.
+$env:REDIS_HOST = $REDIS_HOST
+$env:REDIS_PORT = $REDIS_PORT
+$env:REDIS_DATABASE = $REDIS_DATABASE
+
+# Configure the Python environment.
+cd "C:\Users\gvermeiren\github\AI-200-Demos\6. Redis\amr-pub-sub-python\client"
+
+# Create the virtual environment once for this sample.
+# python -m venv .venv
+
+# Activate the environment. Use source .venv/bin/activate on Bash.
+.\.venv\Scripts\Activate.ps1
+
+# Install Flask, redis-py, Microsoft Entra authentication, and other dependencies.
+# pip install -r requirements.txt
+
+# Run the Flask application.
+python app.py
+
+# Open http://localhost:5000 in a browser.
+
+# Subscribe to the notifications channel.
+# Publish a Notification event and watch it appear in Received Messages.
+
+# Publish an Inventory Alert event.
+# It is sent to inventory:alerts, but is not received until that channel is subscribed to.
+
+# Subscribe to the orders:* pattern.
+# This receives messages published to orders:created and orders:shipped.
+
+# Publish Order Created and Order Shipped events.
+# Both messages should appear because they match the orders:* pattern.
+
+# Select Broadcast to All.
+# The same announcement is published to every available channel.
+
+# Select Unsubscribe from All, then broadcast again.
+# No new messages should appear because there are no active subscriptions.
+
+# Stop the Flask app with Ctrl+C before continuing.
+
+# Deactivate the virtual environment when finished.
+deactivate
+
+# Clean up the Azure resources when the exercise is complete.
+# WARNING: This deletes the entire resource group and all resources inside it.
+# az group delete --name $rg --no-wait --yes
+
+# Troubleshooting reminders:
+# - Confirm the Redis cluster and database provisioning states are Succeeded.
+# - Confirm the Microsoft Entra data access assignment completed successfully.
+# - Subscribe to a channel before publishing if you want to receive its messages.
+# - Keep the Flask terminal running while using the browser.
+# - Run . .\.env.ps1 only when using the original lab-generated environment file.
