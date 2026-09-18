@@ -1,0 +1,118 @@
+# Redis Pub/Sub Code Examples for Real-Time AI Events
+# Microsoft Learn:
+# https://learn.microsoft.com/en-us/training/modules/implement-event-messaging-azure-managed-redis/2-redis-pub-sub
+
+# Redis Pub/Sub lets one part of an application publish a message to a channel
+# while other parts subscribe to that channel. Publishers and subscribers do not
+# need to know about each other directly.
+
+# The examples below assume that redis_client is an authenticated Redis client.
+# Azure Managed Redis uses TLS on port 10000. The client can authenticate with
+# Microsoft Entra ID using redis-entraid and DefaultAzureCredential.
+
+# Channel names are application-defined strings. A naming convention helps
+# related services find the events they need.
+conversation_channel = "ai:conversations:123"
+prediction_channel = "ml:model:predictions"
+training_channel = "ai:training:status"
+embedding_channel = "embeddings:cache:refresh"
+
+# Pattern examples can subscribe to groups of related channels.
+conversation_pattern = "ai:conversations:*"
+model_status_pattern = "ml:models:*:status"
+prediction_pattern = "ai:*:predictions"
+
+# Publishing an event.
+# PUBLISH sends a message to every subscriber currently listening to the channel.
+# The return value is the number of subscribers that received the message.
+def notify_model_updated(model_name, version):
+    message = f"{model_name}:{version}"
+    redis_client.publish("ai:models:updated", message)
+
+
+def notify_embeddings_refreshed(collection_id):
+    redis_client.publish("ai:embeddings:refresh", collection_id)
+
+
+# Subscribing to specific channels.
+# SUBSCRIBE listens only to the named channels. The listener waits for messages
+# and lets the application react to each event as it arrives.
+pubsub = redis_client.pubsub()
+pubsub.subscribe("ai:models:updated", "ai:embeddings:refresh")
+
+for message in pubsub.listen():
+    if message["type"] != "message":
+        continue
+
+    channel = message["channel"]
+    data = message["data"]
+
+    if channel == "ai:models:updated":
+        clear_model_cache(data)
+    elif channel == "ai:embeddings:refresh":
+        refresh_embedding_cache(data)
+
+
+# Pattern subscriptions.
+# PSUBSCRIBE listens to every channel matching a wildcard pattern. The message
+# includes both the pattern and the actual channel that published the event.
+pubsub = redis_client.pubsub()
+pubsub.psubscribe("ai:*")
+
+for message in pubsub.listen():
+    if message["type"] != "pmessage":
+        continue
+
+    pattern = message["pattern"]
+    channel = message["channel"]
+    data = message["data"]
+
+    print(f"Received on {channel}: {data}")
+    handle_ai_event(channel, data)
+
+
+# Broadcasting to WebSocket clients.
+# A background Redis listener can forward Redis events to connected browsers.
+# This example uses FastAPI and the asynchronous redis client.
+from fastapi import FastAPI, WebSocket
+import asyncio
+import redis.asyncio as redis_async
+
+app = FastAPI()
+
+
+async def redis_listener(websocket: WebSocket):
+    redis_client = redis_async.Redis(
+        host="your-redis.redis.cache.windows.net",
+        port=10000,
+        password="your-access-key",
+        ssl=True,
+        decode_responses=True,
+    )
+
+    async with redis_client.pubsub() as pubsub:
+        await pubsub.subscribe("ai:predictions:ready")
+
+        async for message in pubsub.listen():
+            if message["type"] == "message":
+                await websocket.send_json({
+                    "type": "prediction",
+                    "data": message["data"],
+                })
+
+
+@app.websocket("/ws/{client_id}")
+async def websocket_endpoint(websocket: WebSocket, client_id: str):
+    await websocket.accept()
+    await redis_listener(websocket)
+
+
+# Important Redis Pub/Sub behavior:
+# - Delivery is at-most-once: disconnected subscribers miss messages.
+# - Messages are not persisted, so they cannot be replayed later.
+# - Publishing is fire-and-forget; the publisher does not confirm processing.
+# - Pub/Sub is a good fit for fast notifications and loose coupling between
+#   services, but not for durable queues, ordered processing, or retries.
+
+# Common AI use cases include coordinating model services, broadcasting model
+# updates, refreshing embedding caches, and sending live prediction updates.

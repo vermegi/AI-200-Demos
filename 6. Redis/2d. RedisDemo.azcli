@@ -1,0 +1,286 @@
+# Choosing Between Redis Broadcast and Coordinated Work Distribution
+# Microsoft Learn:
+# https://learn.microsoft.com/en-us/training/modules/implement-event-messaging-azure-managed-redis/4-coordinate-multiple-subscribers
+
+# Redis Pub/Sub broadcasts each message to every active subscriber. Redis
+# Streams with consumer groups coordinate work so each task is assigned to one
+# worker. Choose based on whether everyone should react or only one worker should
+# process the task.
+
+# The examples below assume redis_client is an authenticated Redis client.
+
+# Pub/Sub broadcast example.
+# Every active subscriber receives the same cache invalidation event.
+redis_client.publish("ai:cache:invalidate", "embeddings-v2")
+
+# Example subscribers might include API servers, background workers, and
+# analytics services. Each subscriber receives its own copy of the event.
+
+# Broadcast cache invalidation.
+# Use Pub/Sub when every API instance must clear its local model cache.
+def update_model(model_id, new_version):
+    save_model_to_storage(model_id, new_version)
+    redis_client.publish(
+        "ai:models:cache:invalidate",
+        f"{model_id}:{new_version}",
+    )
+
+
+# Each API instance runs a listener and handles the same notification locally.
+pubsub = redis_client.pubsub()
+pubsub.subscribe("ai:models:cache:invalidate")
+
+for message in pubsub.listen():
+    if message["type"] == "message":
+        clear_local_model_cache(message["data"])
+
+
+# Pub/Sub is useful when all subscribers need the same event, such as cache
+# invalidation, configuration updates, monitoring, billing, or analytics.
+# Pub/Sub is not work distribution: three worker subscribers would all process
+# the same inference request, wasting compute and possibly producing duplicates.
+
+
+# Create a Stream consumer group.
+# The group is created once and shared by all worker instances.
+redis_client.xgroup_create(
+    "ai:inference:queue",
+    "workers",
+    "0",
+    mkstream=True,
+)
+
+# Coordinated work distribution.
+# Workers use the same group name but unique consumer names. Redis assigns each
+# new task to one consumer instead of broadcasting it to every worker.
+messages = redis_client.xreadgroup(
+    groupname="workers",
+    consumername=f"worker-{worker_id}",
+    streams={"ai:inference:queue": ">"},
+    count=10,
+)
+
+# Example distribution:
+# Worker 1 gets messages 1, 3, and 5.
+# Worker 2 gets messages 2, 4, and 6.
+# Worker 3 gets messages 7, 8, and 9.
+
+
+# Set up a worker group safely during application startup.
+def setup_worker_infrastructure():
+    try:
+        redis_client.xgroup_create(
+            "ai:document:analysis",
+            "analysis-workers",
+            "0",
+            mkstream=True,
+        )
+    except redis.ResponseError as error:
+        # BUSYGROUP means another worker already created the group.
+        if "BUSYGROUP" not in str(error):
+            raise
+
+
+# Process tasks from the coordinated group.
+def process_documents():
+    worker_id = f"{os.getenv('HOSTNAME')}-{os.getpid()}"
+
+    while True:
+        messages = redis_client.xreadgroup(
+            groupname="analysis-workers",
+            consumername=worker_id,
+            streams={"ai:document:analysis": ">"},
+            count=5,
+            block=5000,
+        )
+
+        for stream, tasks in messages:
+            for task_id, task_data in tasks:
+                analyze_document(task_data)
+                redis_client.xack(
+                    "ai:document:analysis",
+                    "analysis-workers",
+                    task_id,
+                )
+
+
+# The > symbol means read only new messages that have not been delivered to a
+# consumer in this group. Redis remembers which consumer received each message.
+redis_client.xreadgroup(
+    "workers",
+    "worker-1",
+    {"ai:queue": ">"},
+    count=10,
+)
+
+# Reading with 0 is useful when a worker wants to inspect messages already
+# pending for that consumer, such as tasks left behind after a restart.
+redis_client.xreadgroup(
+    "workers",
+    "worker-1",
+    {"ai:queue": "0"},
+    count=10,
+)
+
+
+# Scaling workers dynamically.
+# The same worker code can run on two or twenty instances. New workers join the
+# group automatically and receive a share of new tasks.
+def worker_main():
+    setup_worker_infrastructure()
+    worker_id = generate_unique_worker_id()
+
+    while True:
+        tasks = fetch_next_tasks("workers", worker_id)
+        process_tasks(tasks)
+        acknowledge_completion(tasks)
+
+
+# Detect and reassign abandoned tasks.
+# A task that remains pending for too long may belong to a crashed worker.
+def reassign_abandoned_tasks():
+    pending = redis_client.xpending_range(
+        "ai:inference:queue",
+        "workers",
+        "-",
+        "+",
+        count=100,
+    )
+
+    current_time = int(time.time() * 1000)
+
+    for task in pending:
+        task_id = task["message_id"]
+        idle_time = current_time - task["time_since_delivered"]
+
+        if idle_time > 300000:
+            redis_client.xclaim(
+                "ai:inference:queue",
+                "workers",
+                f"recovery-worker-{os.getpid()}",
+                300000,
+                message_ids=(task_id,),
+            )
+            reprocess_stuck_task(task_id)
+
+
+# Recover pending work assigned to this worker after a restart.
+def worker_startup_recovery():
+    worker_id = get_worker_id()
+    pending = redis_client.xpending_range(
+        "ai:inference:queue",
+        "workers",
+        "-",
+        "+",
+        count=100,
+    )
+
+    my_pending = [
+        task for task in pending
+        if task["consumer"] == worker_id
+    ]
+
+    for task in my_pending:
+        try:
+            retry_task(task["message_id"])
+            redis_client.xack(
+                "ai:inference:queue",
+                "workers",
+                task["message_id"],
+            )
+        except Exception as error:
+            log_error(f"Retry failed for {task['message_id']}: {error}")
+
+
+# Broadcast cache invalidation scenario.
+# Use Pub/Sub because every API server must react to the same model update.
+def deploy_new_model(model_name, version):
+    upload_model_to_storage(model_name, version)
+    redis_client.publish(
+        "ai:models:invalidate",
+        json.dumps({
+            "model": model_name,
+            "version": version,
+            "timestamp": time.time(),
+        }),
+    )
+
+
+# Distributed task-processing scenario.
+# Use Streams because each inference request should be processed once by one
+# worker in the consumer group.
+def queue_inference(request):
+    task_id = redis_client.xadd("ai:inference:queue", {
+        "prompt": request.prompt,
+        "model": request.model,
+        "user_id": request.user_id,
+        "priority": request.priority,
+    })
+    return {"task_id": task_id, "status": "queued"}
+
+
+def inference_worker():
+    worker_id = f"{socket.gethostname()}-{os.getpid()}"
+
+    while True:
+        messages = redis_client.xreadgroup(
+            groupname="inference-workers",
+            consumername=worker_id,
+            streams={"ai:inference:queue": ">"},
+            count=1,
+            block=5000,
+        )
+
+        for stream, tasks in messages:
+            for task_id, task_data in tasks:
+                try:
+                    result = run_model_inference(
+                        task_data["prompt"],
+                        task_data["model"],
+                    )
+                    save_result(task_id, result)
+                    redis_client.xack(
+                        "ai:inference:queue",
+                        "inference-workers",
+                        task_id,
+                    )
+                except Exception as error:
+                    logger.error(f"Task {task_id} failed: {error}")
+
+
+# Hybrid approach.
+# Use Streams for durable processing work and Pub/Sub for live notifications.
+def process_document(doc):
+    task_id = redis_client.xadd("ai:document:queue", {
+        "doc_id": doc.filename,
+        "size": doc.size,
+        "user": current_user.id,
+    })
+
+    redis_client.publish(
+        "ai:documents:events",
+        json.dumps({
+            "event": "document_received",
+            "task_id": task_id,
+            "user": current_user.id,
+        }),
+    )
+
+    return {"task_id": task_id}
+
+
+# Multiple workers process the document from the Stream, while multiple services
+# independently listen to the Pub/Sub event for browser updates, analytics, or
+# monitoring.
+async def event_listener_service():
+    async with redis_client.pubsub() as pubsub:
+        await pubsub.subscribe("ai:documents:events")
+        async for message in pubsub.listen():
+            handle_event(message["data"])
+
+
+# Decision guide:
+# Use Pub/Sub when all subscribers should process the same message and delivery
+# guarantees or acknowledgments are not required.
+# Use Streams consumer groups when each message should be processed by one worker,
+# when tasks need acknowledgments, or when failed work must be reassigned.

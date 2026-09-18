@@ -1,0 +1,147 @@
+# Redis Streams Code Examples for Reliable AI Task Queues
+# Microsoft Learn:
+# https://learn.microsoft.com/en-us/training/modules/implement-event-messaging-azure-managed-redis/3-redis-streams
+
+# Redis Streams are append-only logs that can be used as reliable task queues.
+# Unlike Pub/Sub, Stream entries remain available after they are added. Consumer
+# groups track which worker is processing each task and allow failed work to be
+# retried.
+
+# The examples below assume that redis is an authenticated Redis client.
+# Azure Managed Redis uses TLS on port 10000. The client can authenticate with
+# Microsoft Entra ID using redis-entraid and DefaultAzureCredential.
+
+# Adding an AI processing task.
+# XADD appends a task to the Stream and returns an ordered ID such as
+# 1699980000000-0. The fields can contain any information the worker needs.
+stream_id = redis.xadd("ai:inference:requests", {
+    "user_id": "12345",
+    "model": "gpt-4",
+    "prompt": "Summarize this document...",
+    "priority": "high",
+})
+
+# Queueing an inference request from an API handler.
+# The API can return a job ID immediately while a background worker does the work.
+def queue_inference_request(user_prompt, model_name):
+    task_id = redis.xadd("ai:inference:queue", {
+        "prompt": user_prompt,
+        "model": model_name,
+        "user_id": current_user.id,
+        "requested_at": datetime.now().isoformat(),
+    })
+    return task_id
+
+
+# Creating a consumer group.
+# A group is normally created once when the worker service starts. mkstream=True
+# creates the Stream if it does not exist yet.
+try:
+    redis.xgroup_create(
+        "ai:inference:queue",
+        "workers",
+        id="0",
+        mkstream=True,
+    )
+except redis.ResponseError:
+    pass  # The consumer group already exists.
+
+
+# Processing tasks with multiple workers.
+# Each worker uses a unique consumer name. Redis distributes new tasks across
+# the workers in the group so one task is normally handled by one worker.
+def process_ai_tasks():
+    while True:
+        messages = redis.xreadgroup(
+            groupname="workers",
+            consumername=f"worker-{os.getpid()}",
+            streams={"ai:inference:queue": ">"},
+            count=5,
+            block=5000,
+        )
+
+        for stream, tasks in messages:
+            for task_id, task_data in tasks:
+                try:
+                    result = run_inference(
+                        task_data["prompt"],
+                        task_data["model"],
+                    )
+                    save_result(task_id, result)
+
+                    # XACK marks the task as successfully completed.
+                    redis.xack("ai:inference:queue", "workers", task_id)
+                except Exception as error:
+                    # The task remains pending and can be retried later.
+                    log_error(f"Task {task_id} failed: {error}")
+
+
+# Handling failed or stuck tasks.
+# XPENDING finds tasks that are still assigned to a worker. XCLAIM transfers a
+# task to another worker when the original worker has been idle too long.
+def retry_stuck_tasks():
+    pending = redis.xpending(
+        "ai:inference:queue",
+        "workers",
+        "-",
+        "+",
+        10,
+    )
+
+    for task in pending:
+        task_id = task["message_id"]
+        idle_time = task["time_since_delivered"]
+
+        # Reassign tasks that have been idle for more than five minutes.
+        if idle_time > 300000:
+            redis.xclaim(
+                "ai:inference:queue",
+                "workers",
+                f"worker-{os.getpid()}",
+                0,
+                [task_id],
+            )
+
+
+# Monitoring Stream health.
+# XINFO reports the Stream length and consumer-group statistics for dashboards
+# and alerts.
+def get_queue_stats():
+    info = redis.xinfo_stream("ai:documents:queue")
+    groups = redis.xinfo_groups("ai:documents:queue")
+
+    return {
+        "total_tasks": info["length"],
+        "pending_tasks": groups[0]["pending"],
+        "consumers": groups[0]["consumers"],
+    }
+
+
+# Trimming old tasks.
+# Stream entries remain until they are explicitly removed. MAXLEN keeps only the
+# most recent tasks, which prevents an active queue from growing without limit.
+redis.xadd(
+    "ai:inference:queue",
+    task_data,
+    maxlen=10000,
+    approximate=True,
+)
+
+# A worker can also trim the Stream periodically after acknowledging tasks.
+if task_count % 100 == 0:
+    redis.xtrim(
+        "ai:documents:queue",
+        maxlen=10000,
+        approximate=True,
+    )
+
+
+# When Redis Streams are useful.
+# Use Streams for durable task queues, multi-step AI pipelines, horizontally
+# scaled workers, long-running operations that need retry, or workflows where
+# processing history must be available for debugging and replay.
+
+# Stream trade-offs.
+# Streams provide more reliability than Pub/Sub, but they add acknowledgment and
+# pending-task management. They have slightly more latency, require more code,
+# and do not automatically expire completed tasks, so trimming is your job.
