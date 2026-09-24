@@ -1,0 +1,30 @@
+# Configure Delivery and Retry Policies for Reliable Event Processing
+# Microsoft Learn:
+# https://learn.microsoft.com/en-us/training/modules/event-driven-workflows-event-grid/4-delivery-retry-policies?pivots=text
+
+# Create an event subscription with a 30-minute TTL and a maximum of five
+# delivery attempts.
+az eventgrid event-subscription create `
+    --name moderation-sub `
+    --source-resource-id /subscriptions/{sub-id}/resourceGroups/{rg}/providers/Microsoft.EventGrid/topics/ai-events `
+    --endpoint https://moderation-service.azurewebsites.net/api/events `
+    --max-delivery-attempts 5 `
+    --event-ttl 30
+
+# Enable dead-lettering by specifying an Azure Blob Storage container as the
+# dead-letter endpoint.
+az eventgrid event-subscription create `
+    --name moderation-sub `
+    --source-resource-id /subscriptions/{sub-id}/resourceGroups/{rg}/providers/Microsoft.EventGrid/topics/ai-events `
+    --endpoint https://moderation-service.azurewebsites.net/api/events `
+    --max-delivery-attempts 5 `
+    --event-ttl 30 `
+    --deadletter-endpoint /subscriptions/{sub-id}/resourceGroups/{rg}/providers/Microsoft.Storage/storageAccounts/{storage-account}/blobServices/default/containers/dead-letters
+
+# Enable output batching for high-throughput AI workloads.
+az eventgrid event-subscription create `
+    --name batch-processor-sub `
+    --source-resource-id /subscriptions/{sub-id}/resourceGroups/{rg}/providers/Microsoft.EventGrid/topics/ai-events `
+    --endpoint https://batch-processor.azurewebsites.net/api/events `
+    --max-events-per-batch 100 `
+    --preferred-batch-size-in-kilobytes 512

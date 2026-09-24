@@ -1,0 +1,28 @@
+$repoRoot = Get-Location
+$EVENTGRID_ENDPOINT = $eventGridEndpoint
+$EVENTGRID_TOPIC_NAME = $eventGridTopic
+$RESOURCE_GROUP = $rg
+$NAMESPACE_NAME = $eventGridNamespace
+
+$EVENTGRID_ENDPOINT
+$EVENTGRID_TOPIC_NAME
+$RESOURCE_GROUP
+$NAMESPACE_NAME
+
+# Set as environment variables so the Python app can connect to Azure Event Grid.
+$env:EVENTGRID_ENDPOINT = $EVENTGRID_ENDPOINT
+$env:EVENTGRID_TOPIC_NAME = $EVENTGRID_TOPIC_NAME
+$env:RESOURCE_GROUP = $RESOURCE_GROUP
+$env:NAMESPACE_NAME = $NAMESPACE_NAME
+
+# Configure the Python environment.
+cd (Join-Path $repoRoot "7. Integrate\event-grid-python\client")
+
+# python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+# pip install -r requirements.txt
+
+# Run the Event Grid Flask app.
+python app.py
+
+deactivate

@@ -1,0 +1,123 @@
+# Publish Custom Events from AI Applications
+# Microsoft Learn:
+# https://learn.microsoft.com/en-us/training/modules/event-driven-workflows-event-grid/5-publish-custom-events?pivots=text
+
+# Create a custom topic for AI events.
+az eventgrid topic create \
+    --name ai-pipeline-events \
+    --resource-group ai-platform-rg \
+    --location eastus \
+    --input-schema cloudeventschemav1_0
+
+# Retrieve the topic endpoint and access key.
+az eventgrid topic show \
+    --name ai-pipeline-events \
+    --resource-group ai-platform-rg \
+    --query "endpoint" \
+    --output tsv
+
+az eventgrid topic key list \
+    --name ai-pipeline-events \
+    --resource-group ai-platform-rg \
+    --query "key1" \
+    --output tsv
+
+# CloudEvents event for an inference completion.
+{
+    "specversion": "1.0",
+    "type": "com.contoso.ai.InferenceCompleted",
+    "source": "/services/content-moderation",
+    "id": "evt-20250915-143000-001",
+    "time": "2025-09-15T14:30:00Z",
+    "subject": "/pipelines/moderation/image-classifier",
+    "datacontenttype": "application/json",
+    "data": {
+        "requestId": "req-78901",
+        "modelName": "content-classifier-v3",
+        "modelVersion": "3.2.1",
+        "processingDurationMs": 1250,
+        "resultLocation": "https://results.blob.core.windows.net/output/req-78901.json",
+        "status": "completed",
+        "itemsProcessed": 1,
+        "summary": {
+            "classification": "safe",
+            "confidence": 0.97
+        }
+    }
+}
+
+# Code fragment - focus on creating and sending a CloudEvent
+from azure.core.credentials import AzureKeyCredential
+from azure.core.messaging import CloudEvent
+from azure.eventgrid import EventGridPublisherClient
+
+endpoint = os.environ["EVENTGRID_TOPIC_ENDPOINT"]
+key = os.environ["EVENTGRID_TOPIC_KEY"]
+
+credential = AzureKeyCredential(key)
+client = EventGridPublisherClient(endpoint, credential)
+
+event = CloudEvent(
+    type="com.contoso.ai.InferenceCompleted",
+    source="/services/content-moderation",
+    data={
+        "requestId": "req-78901",
+        "modelName": "content-classifier-v3",
+        "processingDurationMs": 1250,
+        "resultLocation": "https://results.blob.core.windows.net/output/req-78901.json",
+        "status": "completed"
+    },
+    subject="/pipelines/moderation/image-classifier"
+)
+
+client.send(event)
+
+# Code fragment - focus on managed identity authentication
+from azure.identity import DefaultAzureCredential
+from azure.core.messaging import CloudEvent
+from azure.eventgrid import EventGridPublisherClient
+
+endpoint = os.environ["EVENTGRID_TOPIC_ENDPOINT"]
+
+credential = DefaultAzureCredential()
+client = EventGridPublisherClient(endpoint, credential)
+
+# Code fragment - focus on batch publishing
+events = [
+    CloudEvent(
+        type="com.contoso.ai.StageCompleted",
+        source="/services/embeddings",
+        data={"pipelineRunId": "run-42", "stage": "embeddings", "status": "completed"},
+        subject="/pipelines/rag/run-42"
+    ),
+    CloudEvent(
+        type="com.contoso.ai.StageCompleted",
+        source="/services/indexing",
+        data={"pipelineRunId": "run-42", "stage": "indexing", "status": "completed"},
+        subject="/pipelines/rag/run-42"
+    )
+]
+
+client.send(events)
+
+# Publish events using the REST API.
+curl -X POST \
+    -H "Content-Type: application/cloudevents+json; charset=utf-8" \
+    -H "aeg-sas-key: $EVENTGRID_TOPIC_KEY" \
+    -d '{
+        "specversion": "1.0",
+        "type": "com.contoso.ai.ModelRetrained",
+        "source": "/services/training",
+        "id": "evt-20250915-160000-001",
+        "time": "2025-09-15T16:00:00Z",
+        "subject": "/models/sentiment-v2",
+        "datacontenttype": "application/json",
+        "data": {
+            "modelName": "sentiment-v2",
+            "modelVersion": "2.1.0",
+            "accuracy": 0.94,
+            "trainingDurationMinutes": 45,
+            "artifactLocation": "https://models.blob.core.windows.net/trained/sentiment-v2.1.0.tar.gz"
+        }
+    }' \
+    "$EVENTGRID_TOPIC_ENDPOINT"

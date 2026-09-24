@@ -77,6 +77,14 @@ $serviceBusTopic = $outputs.serviceBusTopic.value
 $serviceBusNotificationsSubscription = $outputs.serviceBusNotificationsSubscription.value
 $serviceBusHighPrioritySubscription = $outputs.serviceBusHighPrioritySubscription.value
 $serviceBusHighPriorityRule = $outputs.serviceBusHighPriorityRule.value
+$eventGridNamespace = $outputs.eventGridNamespace.value
+$eventGridResourceId = $outputs.eventGridResourceId.value
+$eventGridTopic = $outputs.eventGridTopic.value
+$eventGridFlaggedSubscription = $outputs.eventGridFlaggedSubscription.value
+$eventGridApprovedSubscription = $outputs.eventGridApprovedSubscription.value
+$eventGridAllEventsSubscription = $outputs.eventGridAllEventsSubscription.value
+$eventGridHostname = $outputs.eventGridHostname.value
+$eventGridEndpoint = $outputs.eventGridEndpoint.value
 
 echo $rg
 echo $acrName
@@ -132,6 +140,14 @@ echo $serviceBusTopic
 echo $serviceBusNotificationsSubscription
 echo $serviceBusHighPrioritySubscription
 echo $serviceBusHighPriorityRule
+echo $eventGridNamespace
+echo $eventGridResourceId
+echo $eventGridTopic
+echo $eventGridFlaggedSubscription
+echo $eventGridApprovedSubscription
+echo $eventGridAllEventsSubscription
+echo $eventGridHostname
+echo $eventGridEndpoint
 
 
 $privateEndpointConnectionName = az network private-endpoint-connection list `

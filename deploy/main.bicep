@@ -41,7 +41,8 @@ var cosmosClientIdentityName = 'id-cosmos-client-${userHash}'
 var postgresName = 'psql-ai200-${userHash}'
 var postgresDatabaseName = 'postgres'
 var redisName = 'amr-exercise-${userHash}'
-var serviceBusName = 'sbns-exercise-${userHash}'
+var serviceBusName = take('sbns-exercise-${userHash}', 50)
+var eventGridName = take('egns-exercise-${userHash}', 50)
 
 resource resourceGroup 'Microsoft.Resources/resourceGroups@2025-04-01' = {
   name: resourceGroupName
@@ -146,6 +147,15 @@ module serviceBus './service-bus.bicep' = {
   }
 }
 
+module eventGrid './event-grid.bicep' = {
+  scope: az.resourceGroup(resourceGroup.name)
+  params: {
+    name: eventGridName
+    location: location
+    userPrincipalId: principalId
+  }
+}
+
 module foundry './foundry.bicep' = {
   scope: az.resourceGroup(resourceGroup.name)
   params: {
@@ -241,3 +251,11 @@ output serviceBusTopic string = serviceBus.outputs.topicName
 output serviceBusNotificationsSubscription string = serviceBus.outputs.notificationsSubscriptionName
 output serviceBusHighPrioritySubscription string = serviceBus.outputs.highPrioritySubscriptionName
 output serviceBusHighPriorityRule string = serviceBus.outputs.highPriorityRuleName
+output eventGridNamespace string = eventGrid.outputs.name
+output eventGridResourceId string = eventGrid.outputs.resourceId
+output eventGridTopic string = eventGrid.outputs.topicName
+output eventGridFlaggedSubscription string = eventGrid.outputs.flaggedSubscriptionName
+output eventGridApprovedSubscription string = eventGrid.outputs.approvedSubscriptionName
+output eventGridAllEventsSubscription string = eventGrid.outputs.allEventsSubscriptionName
+output eventGridHostname string = eventGrid.outputs.hostname
+output eventGridEndpoint string = eventGrid.outputs.endpoint
