@@ -1,4 +1,5 @@
 $repoRoot = Get-Location
+$repoRoot
 $SERVICE_BUS_FQDN = $serviceBusFqdn
 
 $SERVICE_BUS_FQDN

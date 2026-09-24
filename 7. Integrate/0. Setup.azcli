@@ -1,7 +1,14 @@
 $repoRoot = Get-Location
+$repoRoot
 
 Expand-Archive `
     -Path (Join-Path $repoRoot "mslearn-azure-ai\downloads\python\service-bus-python.zip") `
     -DestinationPath (Join-Path $repoRoot "7. Integrate\service-bus-python") `
     -Force
+
+Expand-Archive `
+    -Path (Join-Path $repoRoot "mslearn-azure-ai\downloads\python\event-grid-python.zip") `
+    -DestinationPath (Join-Path $repoRoot "7. Integrate\event-grid-python") `
+    -Force
+
     
