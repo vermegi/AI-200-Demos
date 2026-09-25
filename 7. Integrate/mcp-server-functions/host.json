@@ -1,0 +1,14 @@
+{
+    "version": "2.0",
+    "extensionBundle": {
+        "id": "Microsoft.Azure.Functions.ExtensionBundle.Preview",
+        "version": "[4.*, 5.0.0)"
+    },
+    "extensions": {
+        "mcpToolTrigger": {
+            "serverName": "document-tools",
+            "serverVersion": "1.0.0",
+            "serverInstructions": "Tools for document processing and classification"
+        }
+    }
+}

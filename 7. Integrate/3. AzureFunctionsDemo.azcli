@@ -1,0 +1,49 @@
+$repoRoot = Get-Location
+
+cd (Join-Path $repoRoot "7. Integrate")
+
+mkdir mcp-server-functions
+
+cd mcp-server-functions
+
+# Create the Python virtual environment
+# python -m venv .venv
+
+# Activate the Python virtual environment (PowerShell)
+.\.venv\Scripts\Activate.ps1
+
+# Install the project dependencies
+pip install -r requirements.txt
+
+
+# --- Test the MCP server locally ---
+
+# 2. Start the Functions runtime (no debugger) by running func start in this terminal
+func start
+
+# Verify the terminal output lists both MCP tool trigger functions:
+#   classify_document: mcpToolTrigger
+#   summarize_text: mcpToolTrigger
+
+# 3. Add the MCP server to the chat window:
+#    - Notice the .vscode/mcp.json file
+#    - In GitHub Copilot Chat, click the Tools icon, find "document-tools-local", select "Allow in this Session"
+
+# 4. Explicit prompts (name the tool directly) - enter these in Copilot Chat:
+
+Use the classify_document tool to classify this text: 'This agreement is entered into by Party A and Party B'  with categories: contract, invoice, memo
+# -> Expect classification result: contract
+
+Use the summarize_text tool to summarize this text: 'Azure Functions is a serverless compute service that lets you run event-triggered code without having to explicitly provision or manage infrastructure.'
+# -> Expect result starting with "Summary of <word count> words: ..."
+
+# 5. Natural language prompts (no explicit tool name) - enter these in Copilot Chat:
+
+Is the following text an invoice, contract, or memo?
+'Invoice B1234 for services rendered in January 2026. Total amount due: $5,000.'
+# -> Copilot should auto-invoke classify_document
+
+Give me a brief summary of this text: 'Machine learning models require large datasets for training. The quality of the training data directly impacts model accuracy. Data preprocessing steps include cleaning, normalization, and feature extraction.'
+# -> Copilot should auto-invoke summarize_text
+
+deactivate

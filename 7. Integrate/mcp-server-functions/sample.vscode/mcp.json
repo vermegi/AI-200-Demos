@@ -1,0 +1,8 @@
+{
+    "servers": {
+        "document-tools-local": {
+            "type": "sse",
+            "url": "http://localhost:7071/runtime/webhooks/mcp/sse"
+        }
+    }
+}
