@@ -22,6 +22,9 @@ param userPrincipalId string = ''
 @description('Principal ID of the web app system-assigned identity that pulls images from the registry.')
 param webAppPrincipalId string
 
+@description('Principal ID of the Function App system-assigned identity that pulls images from the registry.')
+param functionAppPrincipalId string
+
 @description('Name of the shared Log Analytics workspace collecting registry diagnostics.')
 @minLength(4)
 @maxLength(63)
@@ -38,6 +41,10 @@ var userRoleIds = empty(userPrincipalId) ? [] : [
   repositoryWriterRoleId
 ]
 var webAppRoleIds = [
+  repositoryReaderRoleId
+  repositoryCatalogListerRoleId
+]
+var functionAppRoleIds = [
   repositoryReaderRoleId
   repositoryCatalogListerRoleId
 ]
@@ -70,6 +77,16 @@ resource webAppRoleAssignments 'Microsoft.Authorization/roleAssignments@2022-04-
   name: guid(registry.id, webAppPrincipalId, roleId)
   properties: {
     principalId: webAppPrincipalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roleId)
+  }
+}]
+
+resource functionAppRoleAssignments 'Microsoft.Authorization/roleAssignments@2022-04-01' = [for roleId in functionAppRoleIds: {
+  scope: registry
+  name: guid(registry.id, functionAppPrincipalId, roleId)
+  properties: {
+    principalId: functionAppPrincipalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roleId)
   }

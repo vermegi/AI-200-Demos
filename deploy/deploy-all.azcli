@@ -85,6 +85,10 @@ $eventGridApprovedSubscription = $outputs.eventGridApprovedSubscription.value
 $eventGridAllEventsSubscription = $outputs.eventGridAllEventsSubscription.value
 $eventGridHostname = $outputs.eventGridHostname.value
 $eventGridEndpoint = $outputs.eventGridEndpoint.value
+$functionApp = "func-document-tools-$userHash"
+$functionAppUrl = "https://$functionApp.azurewebsites.net"
+$functionStorageAccount = "stdoctools$userHash"
+$mcpFrontDoorUrl = "$frontDoorUrl/runtime/webhooks/mcp"
 
 echo $rg
 echo $acrName
@@ -148,6 +152,10 @@ echo $eventGridApprovedSubscription
 echo $eventGridAllEventsSubscription
 echo $eventGridHostname
 echo $eventGridEndpoint
+echo $functionApp
+echo $functionAppUrl
+echo $functionStorageAccount
+echo $mcpFrontDoorUrl
 
 
 $privateEndpointConnectionName = az network private-endpoint-connection list `
@@ -164,3 +172,18 @@ az network private-endpoint-connection approve `
   --type Microsoft.Web/sites `
   --name $privateEndpointConnectionName `
   --description "Approved for Azure Front Door Premium"
+
+$functionPrivateEndpointConnectionName = az network private-endpoint-connection list `
+  --resource-group $rg `
+  --name $functionApp `
+  --type Microsoft.Web/sites `
+  --query "[0].name" `
+  --output tsv
+$functionPrivateEndpointConnectionName
+
+az network private-endpoint-connection approve `
+  --resource-group $rg `
+  --resource-name $functionApp `
+  --type Microsoft.Web/sites `
+  --name $functionPrivateEndpointConnectionName `
+  --description "Approved for Azure Front Door Premium access to the MCP Function App"

@@ -20,6 +20,9 @@ param appServicePlanSku string = 'P0v3'
 @description('Placeholder container image used until the ACR image is built and pushed from the CLI script.')
 param placeholderContainerImage string = 'DOCKER|mcr.microsoft.com/appsvc/staticsite:latest'
 
+@description('Placeholder container image used until the MCP Function App image is built and pushed from the CLI script.')
+param placeholderFunctionContainerImage string = 'DOCKER|mcr.microsoft.com/azure-functions/python:4-python3.11'
+
 @description('Embeddings API key stored as a secret on the manage demo container app.')
 @secure()
 param embeddingsApiKey string
@@ -36,6 +39,8 @@ var foundryName = 'foundry-resource-${userHash}'
 var foundryProjectName = 'foundry-project-${userHash}'
 var aksName = 'aks-${userHash}'
 var logAnalyticsWorkspaceName = 'log-ai200-${userHash}'
+var functionAppName = take('func-document-tools-${userHash}', 60)
+var functionStorageAccountName = take('stdoctools${userHash}', 24)
 var cosmosName = take('cosmos-rag-${userHash}', 44)
 var cosmosClientIdentityName = 'id-cosmos-client-${userHash}'
 var postgresName = 'psql-ai200-${userHash}'
@@ -78,6 +83,26 @@ module webApp './web-app.bicep' = {
   }
 }
 
+module functionStorage './function-storage.bicep' = {
+  scope: az.resourceGroup(resourceGroup.name)
+  params: {
+    name: functionStorageAccountName
+    location: location
+  }
+}
+
+module functionApp './function-app.bicep' = {
+  scope: az.resourceGroup(resourceGroup.name)
+  params: {
+    name: functionAppName
+    location: location
+    serverFarmResourceId: appServicePlan.outputs.resourceId
+    linuxFxVersion: placeholderFunctionContainerImage
+    storageAccountName: functionStorage.outputs.name
+    logAnalyticsWorkspaceName: logAnalytics.outputs.name
+  }
+}
+
 module privateNetworking './private-network.bicep' = {
   scope: resourceGroup
   params: {
@@ -85,6 +110,11 @@ module privateNetworking './private-network.bicep' = {
     userHash: userHash
     webAppResourceId: webApp.outputs.resourceId
     webAppDefaultHostname: webApp.outputs.defaultHostname
+    functionAppName: functionApp.outputs.name
+    functionAppResourceId: functionApp.outputs.resourceId
+    functionAppDefaultHostname: functionApp.outputs.defaultHostname
+    functionStorageAccountName: functionStorage.outputs.name
+    functionStorageAccountResourceId: functionStorage.outputs.resourceId
     logAnalyticsWorkspaceName: logAnalytics.outputs.name
   }
 }
@@ -98,6 +128,7 @@ module registry './container-registry.bicep' = {
     acrSku: 'Basic'
     userPrincipalId: principalId
     webAppPrincipalId: webApp.outputs.systemAssignedMIPrincipalId
+    functionAppPrincipalId: functionApp.outputs.systemAssignedMIPrincipalId
     logAnalyticsWorkspaceName: logAnalytics.outputs.name
   }
 }

@@ -9,6 +9,11 @@
             "serverName": "document-tools",
             "serverVersion": "1.0.0",
             "serverInstructions": "Tools for document processing and classification"
+        },
+        "mcp": {
+            "system": {
+                "webhookAuthorizationLevel": "Anonymous"
+            }
         }
     }
 }

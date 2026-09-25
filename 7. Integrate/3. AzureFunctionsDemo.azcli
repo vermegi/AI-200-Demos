@@ -47,3 +47,40 @@ Give me a brief summary of this text: 'Machine learning models require large dat
 # -> Copilot should auto-invoke summarize_text
 
 deactivate
+
+
+# --- Deploy the MCP server container to Azure Functions ---
+
+$containerImage = "mcp-document-tools:v1"
+
+
+az acr build `
+	--resource-group $rg `
+	--registry $acrName `
+	--image $containerImage `
+	--file Dockerfile `
+	--no-logs `
+	--source-acr-auth-id [caller] `
+	.
+
+az functionapp config container set `
+	--resource-group $rg `
+	--name $functionApp `
+	--image "$($acrName).azurecr.io/$containerImage" `
+	--registry-server "https://$($acrName).azurecr.io"
+
+az functionapp restart `
+	--resource-group $rg `
+	--name $functionApp
+
+az functionapp function list `
+	--resource-group $rg `
+	--name $functionApp `
+	--query "[].{name:name, trigger:config.bindings[0].type}" `
+	--output table
+
+# For testing on Azure add to mcp.json:
+# "document-tools-azure": {
+#     "type": "http",
+#     "url": "https://afd-docprocessor-20260902-twjo2bfh5amwq-dhcxf6afcxfecyhj.b02.azurefd.net/runtime/webhooks/mcp/"
+# }
