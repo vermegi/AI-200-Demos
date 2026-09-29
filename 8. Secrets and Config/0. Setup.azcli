@@ -1,0 +1,9 @@
+$repoRoot = Get-Location
+$repoRoot
+
+Expand-Archive `
+    -Path (Join-Path $repoRoot "mslearn-azure-ai\downloads\python\key-vault-python.zip") `
+    -DestinationPath (Join-Path $repoRoot "8. Secrets and Config\key-vault-python") `
+    -Force
+
+    

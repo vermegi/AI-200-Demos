@@ -2,6 +2,8 @@ $repoRoot = Get-Location
 $userHash = "20260902"
 $location = "francecentral"
 $embeddingsApiKey = "demo-key-12345"
+$openaiApiKey = "sk-proj-abc123def456ghi789jkl012mno345pqr678stu901vwx"
+$cosmosDbConnectionString = "AccountEndpoint=https://mycosmosdb.documents.azure.com:443/;AccountKey=abc123def456ghi789=="
 
 # USE MCAPS ACCOUNT!
 az login
@@ -19,72 +21,76 @@ az deployment sub create `
     --name $deploymentName `
     --location $location `
     --template-file $templateFile `
-    --parameters userHash=$userHash location=$location principalId=$myId userPrincipalName=$myUpn embeddingsApiKey=$embeddingsApiKey
+    --parameters userHash=$userHash location=$location principalId=$myId userPrincipalName=$myUpn embeddingsApiKey=$embeddingsApiKey openaiApiKey=$openaiApiKey cosmosDbConnectionString=$cosmosDbConnectionString
 
 $outputs = az deployment sub show --name $deploymentName --query properties.outputs | ConvertFrom-Json
 
 $rg = $outputs.resourceGroup.value
-$acrName = $outputs.registry.value
-$acrId = $outputs.registryId.value
-$acrLoginServer = $outputs.loginServer.value
-$appPlan = $outputs.appServicePlan.value
-$appName = $outputs.webApp.value
-$appUrl = $outputs.webAppUrl.value
-$appPrincipalId = $outputs.webAppPrincipalId.value
-$frontDoorProfile = $outputs.frontDoorProfile.value
-$frontDoorEndpoint = $outputs.frontDoorEndpoint.value
-$frontDoorUrl = $outputs.frontDoorUrl.value
-$containerAppsEnvironment = $outputs.containerAppsEnvironment.value
-$containerAppName = $outputs.containerApp.value
-$containerAppUrl = $outputs.containerAppUrl.value
-$containerAppPrincipalId = $outputs.containerAppPrincipalId.value
-$manageContainerApp = $outputs.manageContainerApp.value
-$manageContainerAppUrl = $outputs.manageContainerAppUrl.value
-$manageContainerAppPrincipalId = $outputs.manageContainerAppPrincipalId.value
-$scaleContainerApp = $outputs.scaleContainerApp.value
-$scaleContainerAppUrl = $outputs.scaleContainerAppUrl.value
-$scaleContainerAppPrincipalId = $outputs.scaleContainerAppPrincipalId.value
-$logAnalyticsWorkspace = $outputs.logAnalyticsWorkspace.value
-$foundryAccount = $outputs.foundryAccount.value
-$foundryEndpoint = $outputs.foundryEndpoint.value
-$foundryProject = $outputs.foundryProject.value
-$foundryModelDeployment = $outputs.foundryModelDeployment.value
-$aksCluster = $outputs.aksCluster.value
-$aksKubeletObjectId = $outputs.aksKubeletObjectId.value
-$cosmosAccount = $outputs.cosmosAccount.value
-$cosmosEndpoint = $outputs.cosmosEndpoint.value
-$cosmosDatabase = $outputs.cosmosDatabase.value
-$cosmosContainer = $outputs.cosmosContainer.value
-$cosmosVectorDatabase = $outputs.cosmosVectorDatabase.value
-$cosmosVectorContainer = $outputs.cosmosVectorContainer.value
-$cosmosIndexOptimizationDatabase = $outputs.cosmosIndexOptimizationDatabase.value
-$cosmosIndexOptimizationContainers = $outputs.cosmosIndexOptimizationContainers.value
-$cosmosClientIdentityClientId = $outputs.cosmosClientIdentityClientId.value
-$postgresServer = $outputs.postgresServer.value
-$postgresHost = $outputs.postgresHost.value
-$postgresDatabase = $outputs.postgresDatabase.value
-$postgresAdmin = $outputs.postgresAdmin.value
-$redisCluster = $outputs.redisCluster.value
-$redisHost = $outputs.redisHost.value
-$redisDatabase = $outputs.redisDatabase.value
-$redisPort = $outputs.redisPort.value
-$redisAccessAssignment = $outputs.redisAccessAssignment.value
-$serviceBusNamespace = $outputs.serviceBusNamespace.value
-$serviceBusResourceId = $outputs.serviceBusResourceId.value
-$serviceBusFqdn = $outputs.serviceBusFqdn.value
-$serviceBusQueue = $outputs.serviceBusQueue.value
-$serviceBusTopic = $outputs.serviceBusTopic.value
-$serviceBusNotificationsSubscription = $outputs.serviceBusNotificationsSubscription.value
-$serviceBusHighPrioritySubscription = $outputs.serviceBusHighPrioritySubscription.value
-$serviceBusHighPriorityRule = $outputs.serviceBusHighPriorityRule.value
-$eventGridNamespace = $outputs.eventGridNamespace.value
-$eventGridResourceId = $outputs.eventGridResourceId.value
-$eventGridTopic = $outputs.eventGridTopic.value
-$eventGridFlaggedSubscription = $outputs.eventGridFlaggedSubscription.value
-$eventGridApprovedSubscription = $outputs.eventGridApprovedSubscription.value
-$eventGridAllEventsSubscription = $outputs.eventGridAllEventsSubscription.value
-$eventGridHostname = $outputs.eventGridHostname.value
-$eventGridEndpoint = $outputs.eventGridEndpoint.value
+$acrName = $outputs.containerRegistry.value.name
+$acrId = $outputs.containerRegistry.value.resourceId
+$acrLoginServer = $outputs.containerRegistry.value.loginServer
+$appPlan = $outputs.appService.value.plan
+$appName = $outputs.appService.value.webApp
+$appUrl = $outputs.appService.value.webAppUrl
+$appPrincipalId = $outputs.appService.value.webAppPrincipalId
+$frontDoorProfile = $outputs.privateNetworking.value.frontDoorProfile
+$frontDoorEndpoint = $outputs.privateNetworking.value.frontDoorEndpoint
+$frontDoorUrl = $outputs.privateNetworking.value.frontDoorUrl
+$containerAppsEnvironment = $outputs.containerApps.value.environment
+$containerAppName = $outputs.containerApps.value.app
+$containerAppUrl = $outputs.containerApps.value.appUrl
+$containerAppPrincipalId = $outputs.containerApps.value.appPrincipalId
+$manageContainerApp = $outputs.containerApps.value.manageApp
+$manageContainerAppUrl = $outputs.containerApps.value.manageAppUrl
+$manageContainerAppPrincipalId = $outputs.containerApps.value.manageAppPrincipalId
+$scaleContainerApp = $outputs.containerApps.value.scaleApp
+$scaleContainerAppUrl = $outputs.containerApps.value.scaleAppUrl
+$scaleContainerAppPrincipalId = $outputs.containerApps.value.scaleAppPrincipalId
+$logAnalyticsWorkspace = $outputs.logAnalytics.value.workspace
+$foundryAccount = $outputs.foundry.value.account
+$foundryEndpoint = $outputs.foundry.value.endpoint
+$foundryProject = $outputs.foundry.value.project
+$foundryModelDeployment = $outputs.foundry.value.modelDeployment
+$aksCluster = $outputs.aks.value.cluster
+$aksKubeletObjectId = $outputs.aks.value.kubeletObjectId
+$cosmosAccount = $outputs.cosmos.value.account
+$cosmosEndpoint = $outputs.cosmos.value.endpoint
+$cosmosDatabase = $outputs.cosmos.value.database
+$cosmosContainer = $outputs.cosmos.value.container
+$cosmosVectorDatabase = $outputs.cosmos.value.vectorDatabase
+$cosmosVectorContainer = $outputs.cosmos.value.vectorContainer
+$cosmosIndexOptimizationDatabase = $outputs.cosmos.value.indexOptimizationDatabase
+$cosmosIndexOptimizationContainers = $outputs.cosmos.value.indexOptimizationContainers
+$cosmosClientIdentityClientId = $outputs.cosmos.value.clientIdentityClientId
+$postgresServer = $outputs.postgres.value.server
+$postgresHost = $outputs.postgres.value.host
+$postgresDatabase = $outputs.postgres.value.database
+$postgresAdmin = $outputs.postgres.value.admin
+$redisCluster = $outputs.redis.value.cluster
+$redisHost = $outputs.redis.value.host
+$redisDatabase = $outputs.redis.value.database
+$redisPort = $outputs.redis.value.port
+$redisAccessAssignment = $outputs.redis.value.accessAssignment
+$serviceBusNamespace = $outputs.serviceBus.value.namespace
+$serviceBusResourceId = $outputs.serviceBus.value.resourceId
+$serviceBusFqdn = $outputs.serviceBus.value.fqdn
+$serviceBusQueue = $outputs.serviceBus.value.queue
+$serviceBusTopic = $outputs.serviceBus.value.topic
+$serviceBusNotificationsSubscription = $outputs.serviceBus.value.notificationsSubscription
+$serviceBusHighPrioritySubscription = $outputs.serviceBus.value.highPrioritySubscription
+$serviceBusHighPriorityRule = $outputs.serviceBus.value.highPriorityRule
+$eventGridNamespace = $outputs.eventGrid.value.namespace
+$eventGridResourceId = $outputs.eventGrid.value.resourceId
+$eventGridTopic = $outputs.eventGrid.value.topic
+$eventGridFlaggedSubscription = $outputs.eventGrid.value.flaggedSubscription
+$eventGridApprovedSubscription = $outputs.eventGrid.value.approvedSubscription
+$eventGridAllEventsSubscription = $outputs.eventGrid.value.allEventsSubscription
+$eventGridHostname = $outputs.eventGrid.value.hostname
+$eventGridEndpoint = $outputs.eventGrid.value.endpoint
+$keyVault = $outputs.keyVault.value.name
+$keyVaultUrl = $outputs.keyVault.value.uri
+$keyVaultClientIdentityName = $outputs.keyVault.value.clientIdentity
+$keyVaultClientIdentityClientId = $outputs.keyVault.value.clientIdentityClientId
 $functionApp = "func-document-tools-$userHash"
 $functionAppUrl = "https://$functionApp.azurewebsites.net"
 $functionStorageAccount = "stdoctools$userHash"
@@ -152,6 +158,8 @@ echo $eventGridApprovedSubscription
 echo $eventGridAllEventsSubscription
 echo $eventGridHostname
 echo $eventGridEndpoint
+echo $keyVault
+echo $keyVaultUrl
 echo $functionApp
 echo $functionAppUrl
 echo $functionStorageAccount

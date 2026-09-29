@@ -27,6 +27,120 @@ param placeholderFunctionContainerImage string = 'DOCKER|mcr.microsoft.com/azure
 @secure()
 param embeddingsApiKey string
 
+@description('Sample OpenAI API key stored in Key Vault.')
+@secure()
+param openaiApiKey string
+
+@description('Sample Cosmos DB connection string stored in Key Vault.')
+@secure()
+param cosmosDbConnectionString string
+
+type containerRegistryOutputType = {
+  name: string
+  resourceId: string
+  loginServer: string
+}
+
+type appServiceOutputType = {
+  plan: string
+  webApp: string
+  webAppUrl: string
+  webAppPrincipalId: string
+}
+
+type privateNetworkingOutputType = {
+  virtualNetwork: string
+  frontDoorProfile: string
+  frontDoorEndpoint: string
+  frontDoorHostname: string
+  frontDoorUrl: string
+}
+
+type containerAppsOutputType = {
+  environment: string
+  app: string
+  appUrl: string
+  appPrincipalId: string
+  manageApp: string
+  manageAppUrl: string
+  manageAppPrincipalId: string
+  scaleApp: string
+  scaleAppUrl: string
+  scaleAppPrincipalId: string
+}
+
+type logAnalyticsOutputType = {
+  workspace: string
+}
+
+type foundryOutputType = {
+  account: string
+  endpoint: string
+  project: string
+  modelDeployment: string
+}
+
+type aksOutputType = {
+  cluster: string
+  kubeletObjectId: string
+}
+
+type cosmosOutputType = {
+  account: string
+  endpoint: string
+  database: string
+  container: string
+  vectorDatabase: string
+  vectorContainer: string
+  indexOptimizationDatabase: string
+  indexOptimizationContainers: string[]
+  clientIdentityClientId: string
+}
+
+type postgresOutputType = {
+  server: string
+  host: string
+  database: string
+  admin: string
+}
+
+type redisOutputType = {
+  cluster: string
+  host: string
+  database: string
+  port: int
+  accessAssignment: string
+}
+
+type serviceBusOutputType = {
+  namespace: string
+  resourceId: string
+  fqdn: string
+  queue: string
+  topic: string
+  notificationsSubscription: string
+  highPrioritySubscription: string
+  highPriorityRule: string
+}
+
+type eventGridOutputType = {
+  namespace: string
+  resourceId: string
+  topic: string
+  flaggedSubscription: string
+  approvedSubscription: string
+  allEventsSubscription: string
+  hostname: string
+  endpoint: string
+}
+
+type keyVaultOutputType = {
+  name: string
+  uri: string
+  clientIdentity: string
+  clientIdentityClientId: string
+}
+
 var resourceGroupName = 'rg-AI200-${userHash}'
 var registryName = 'acr${userHash}'
 var appServicePlanName = 'plan-docprocessor-${userHash}'
@@ -43,11 +157,13 @@ var functionAppName = take('func-document-tools-${userHash}', 60)
 var functionStorageAccountName = take('stdoctools${userHash}', 24)
 var cosmosName = take('cosmos-rag-${userHash}', 44)
 var cosmosClientIdentityName = 'id-cosmos-client-${userHash}'
+var keyVaultClientIdentityName = 'id-keyvault-client-${userHash}'
 var postgresName = 'psql-ai200-${userHash}'
 var postgresDatabaseName = 'postgres'
 var redisName = 'amr-exercise-${userHash}'
 var serviceBusName = take('sbns-exercise-${userHash}', 50)
 var eventGridName = take('egns-exercise-${userHash}', 50)
+var keyVaultName = 'kv-${uniqueString(subscription().id, resourceGroup.name, principalId)}'
 
 resource resourceGroup 'Microsoft.Resources/resourceGroups@2025-04-01' = {
   name: resourceGroupName
@@ -187,6 +303,21 @@ module eventGrid './event-grid.bicep' = {
   }
 }
 
+module keyVault './key-vault.bicep' = {
+  scope: az.resourceGroup(resourceGroup.name)
+  params: {
+    name: keyVaultName
+    location: location
+    clientIdentityName: keyVaultClientIdentityName
+    aksOidcIssuerUrl: aks.outputs.oidcIssuerUrl
+    userPrincipalId: principalId
+    openaiApiKey: openaiApiKey
+    cosmosDbConnectionString: cosmosDbConnectionString
+    virtualNetworkName: privateNetworking.outputs.virtualNetwork
+    privateEndpointSubnetName: privateNetworking.outputs.privateEndpointSubnetName
+  }
+}
+
 module foundry './foundry.bicep' = {
   scope: az.resourceGroup(resourceGroup.name)
   params: {
@@ -227,66 +358,96 @@ module cosmos './cosmos.bicep' = {
 }
 
 output resourceGroup string = resourceGroup.name
-output registry string = registry.outputs.name
-output registryId string = registry.outputs.resourceId
-output loginServer string = registry.outputs.loginServer
-output appServicePlan string = appServicePlan.outputs.name
-output webApp string = webApp.outputs.name
-output webAppUrl string = 'https://${webApp.outputs.defaultHostname}'
-output webAppPrincipalId string = webApp.outputs.systemAssignedMIPrincipalId
-output virtualNetwork string = privateNetworking.outputs.virtualNetwork
-output frontDoorProfile string = privateNetworking.outputs.frontDoorProfile
-output frontDoorEndpoint string = privateNetworking.outputs.frontDoorEndpoint
-output frontDoorHostname string = privateNetworking.outputs.frontDoorHostname
-output frontDoorUrl string = privateNetworking.outputs.frontDoorUrl
-output containerAppsEnvironment string = containerApps.outputs.environmentName
-output containerApp string = containerApps.outputs.containerAppName
-output containerAppUrl string = containerApps.outputs.containerAppUrl
-output containerAppPrincipalId string = containerApps.outputs.containerAppPrincipalId
-output manageContainerApp string = containerApps.outputs.manageContainerAppName
-output manageContainerAppUrl string = containerApps.outputs.manageContainerAppUrl
-output manageContainerAppPrincipalId string = containerApps.outputs.manageContainerAppPrincipalId
-output scaleContainerApp string = containerApps.outputs.scaleContainerAppName
-output scaleContainerAppUrl string = containerApps.outputs.scaleContainerAppUrl
-output scaleContainerAppPrincipalId string = containerApps.outputs.scaleContainerAppPrincipalId
-output logAnalyticsWorkspace string = logAnalytics.outputs.name
-output foundryAccount string = foundry.outputs.name
-output foundryEndpoint string = foundry.outputs.endpoint
-output foundryProject string = foundry.outputs.projectName
-output foundryModelDeployment string = foundry.outputs.modelDeploymentName
-output aksCluster string = aks.outputs.name
-output aksKubeletObjectId string = aks.outputs.kubeletIdentityObjectId
-output cosmosAccount string = cosmos.outputs.name
-output cosmosEndpoint string = cosmos.outputs.endpoint
-output cosmosDatabase string = cosmos.outputs.databaseName
-output cosmosContainer string = cosmos.outputs.containerName
-output cosmosVectorDatabase string = cosmos.outputs.vectorDatabaseName
-output cosmosVectorContainer string = cosmos.outputs.vectorContainerName
-output cosmosIndexOptimizationDatabase string = cosmos.outputs.indexOptimizationDatabaseName
-output cosmosIndexOptimizationContainers string[] = cosmos.outputs.indexOptimizationContainerNames
-output cosmosClientIdentityClientId string = cosmos.outputs.clientIdentityClientId
-output postgresServer string = postgres.outputs.name
-output postgresHost string = postgres.outputs.fullyQualifiedDomainName
-output postgresDatabase string = postgresDatabaseName
-output postgresAdmin string = postgres.outputs.administratorPrincipalName
-output redisCluster string = redis.outputs.name
-output redisHost string = redis.outputs.hostName
-output redisDatabase string = redis.outputs.databaseName
-output redisPort int = redis.outputs.databasePort
-output redisAccessAssignment string = redis.outputs.accessAssignmentName
-output serviceBusNamespace string = serviceBus.outputs.name
-output serviceBusResourceId string = serviceBus.outputs.resourceId
-output serviceBusFqdn string = serviceBus.outputs.fullyQualifiedDomainName
-output serviceBusQueue string = serviceBus.outputs.queueName
-output serviceBusTopic string = serviceBus.outputs.topicName
-output serviceBusNotificationsSubscription string = serviceBus.outputs.notificationsSubscriptionName
-output serviceBusHighPrioritySubscription string = serviceBus.outputs.highPrioritySubscriptionName
-output serviceBusHighPriorityRule string = serviceBus.outputs.highPriorityRuleName
-output eventGridNamespace string = eventGrid.outputs.name
-output eventGridResourceId string = eventGrid.outputs.resourceId
-output eventGridTopic string = eventGrid.outputs.topicName
-output eventGridFlaggedSubscription string = eventGrid.outputs.flaggedSubscriptionName
-output eventGridApprovedSubscription string = eventGrid.outputs.approvedSubscriptionName
-output eventGridAllEventsSubscription string = eventGrid.outputs.allEventsSubscriptionName
-output eventGridHostname string = eventGrid.outputs.hostname
-output eventGridEndpoint string = eventGrid.outputs.endpoint
+output containerRegistry containerRegistryOutputType = {
+  name: registry.outputs.name
+  resourceId: registry.outputs.resourceId
+  loginServer: registry.outputs.loginServer
+}
+output appService appServiceOutputType = {
+  plan: appServicePlan.outputs.name
+  webApp: webApp.outputs.name
+  webAppUrl: 'https://${webApp.outputs.defaultHostname}'
+  webAppPrincipalId: webApp.outputs.systemAssignedMIPrincipalId
+}
+output privateNetworking privateNetworkingOutputType = {
+  virtualNetwork: privateNetworking.outputs.virtualNetwork
+  frontDoorProfile: privateNetworking.outputs.frontDoorProfile
+  frontDoorEndpoint: privateNetworking.outputs.frontDoorEndpoint
+  frontDoorHostname: privateNetworking.outputs.frontDoorHostname
+  frontDoorUrl: privateNetworking.outputs.frontDoorUrl
+}
+output containerApps containerAppsOutputType = {
+  environment: containerApps.outputs.environmentName
+  app: containerApps.outputs.containerAppName
+  appUrl: containerApps.outputs.containerAppUrl
+  appPrincipalId: containerApps.outputs.containerAppPrincipalId
+  manageApp: containerApps.outputs.manageContainerAppName
+  manageAppUrl: containerApps.outputs.manageContainerAppUrl
+  manageAppPrincipalId: containerApps.outputs.manageContainerAppPrincipalId
+  scaleApp: containerApps.outputs.scaleContainerAppName
+  scaleAppUrl: containerApps.outputs.scaleContainerAppUrl
+  scaleAppPrincipalId: containerApps.outputs.scaleContainerAppPrincipalId
+}
+output logAnalytics logAnalyticsOutputType = {
+  workspace: logAnalytics.outputs.name
+}
+output foundry foundryOutputType = {
+  account: foundry.outputs.name
+  endpoint: foundry.outputs.endpoint
+  project: foundry.outputs.projectName
+  modelDeployment: foundry.outputs.modelDeploymentName
+}
+output aks aksOutputType = {
+  cluster: aks.outputs.name
+  kubeletObjectId: aks.outputs.kubeletIdentityObjectId
+}
+output cosmos cosmosOutputType = {
+  account: cosmos.outputs.name
+  endpoint: cosmos.outputs.endpoint
+  database: cosmos.outputs.databaseName
+  container: cosmos.outputs.containerName
+  vectorDatabase: cosmos.outputs.vectorDatabaseName
+  vectorContainer: cosmos.outputs.vectorContainerName
+  indexOptimizationDatabase: cosmos.outputs.indexOptimizationDatabaseName
+  indexOptimizationContainers: cosmos.outputs.indexOptimizationContainerNames
+  clientIdentityClientId: cosmos.outputs.clientIdentityClientId
+}
+output postgres postgresOutputType = {
+  server: postgres.outputs.name
+  host: postgres.outputs.fullyQualifiedDomainName
+  database: postgresDatabaseName
+  admin: postgres.outputs.administratorPrincipalName
+}
+output redis redisOutputType = {
+  cluster: redis.outputs.name
+  host: redis.outputs.hostName
+  database: redis.outputs.databaseName
+  port: redis.outputs.databasePort
+  accessAssignment: redis.outputs.accessAssignmentName
+}
+output serviceBus serviceBusOutputType = {
+  namespace: serviceBus.outputs.name
+  resourceId: serviceBus.outputs.resourceId
+  fqdn: serviceBus.outputs.fullyQualifiedDomainName
+  queue: serviceBus.outputs.queueName
+  topic: serviceBus.outputs.topicName
+  notificationsSubscription: serviceBus.outputs.notificationsSubscriptionName
+  highPrioritySubscription: serviceBus.outputs.highPrioritySubscriptionName
+  highPriorityRule: serviceBus.outputs.highPriorityRuleName
+}
+output eventGrid eventGridOutputType = {
+  namespace: eventGrid.outputs.name
+  resourceId: eventGrid.outputs.resourceId
+  topic: eventGrid.outputs.topicName
+  flaggedSubscription: eventGrid.outputs.flaggedSubscriptionName
+  approvedSubscription: eventGrid.outputs.approvedSubscriptionName
+  allEventsSubscription: eventGrid.outputs.allEventsSubscriptionName
+  hostname: eventGrid.outputs.hostname
+  endpoint: eventGrid.outputs.endpoint
+}
+output keyVault keyVaultOutputType = {
+  name: keyVault.outputs.name
+  uri: keyVault.outputs.uri
+  clientIdentity: keyVault.outputs.clientIdentityName
+  clientIdentityClientId: keyVault.outputs.clientIdentityClientId
+}
