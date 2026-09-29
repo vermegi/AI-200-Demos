@@ -1,0 +1,33 @@
+$repoRoot = Get-Location
+
+cd (Join-Path $repoRoot "7. Integrate")
+
+cd durable-functions-python
+
+# Create the Python virtual environment
+# python -m venv .venv
+
+# Activate the Python virtual environment (PowerShell)
+.\.venv\Scripts\Activate.ps1
+
+# Install the project dependencies
+pip install -r requirements.txt
+
+##############
+# Make sure Azurite is running
+##############
+
+func start
+
+##############
+# Open second terminal and activate venv there as well 
+##############
+$repoRoot = Get-Location
+cd (Join-Path $repoRoot "7. Integrate")
+
+cd durable-functions-python
+
+# Activate the Python virtual environment (PowerShell)
+.\.venv\Scripts\Activate.ps1
+
+python tests/run_workflow_tests.py

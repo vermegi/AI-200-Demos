@@ -167,6 +167,9 @@ coverage*.info
 
 # Azure local state
 .azure/
+__azurite_*
+__blobstorage__/
+__queuestorage__/
 
 # Editors and operating systems
 .vscode/
