@@ -1,0 +1,68 @@
+# Samples from:
+# https://learn.microsoft.com/en-us/training/modules/manage-app-secrets-key-vault/5-implement-caching-strategies
+
+# Cache each secret in memory and refresh it from Key Vault after the TTL expires.
+import time
+from azure.identity import DefaultAzureCredential
+from azure.keyvault.secrets import SecretClient
+
+class SecretCache:
+    def __init__(self, vault_url, cache_ttl_seconds=900):
+        credential = DefaultAzureCredential()
+        self._client = SecretClient(vault_url=vault_url, credential=credential)
+        self._cache = {}
+        self._cache_ttl = cache_ttl_seconds
+
+    def get_secret(self, secret_name):
+        cached = self._cache.get(secret_name)
+        now = time.monotonic()
+
+        if cached and (now - cached["timestamp"]) < self._cache_ttl:
+            return cached["value"]
+
+        secret = self._client.get_secret(secret_name)
+        self._cache[secret_name] = {
+            "value": secret.value,
+            "timestamp": now
+        }
+        return secret.value
+
+# Load required secrets at startup and read them from memory while handling requests.
+class AppConfig:
+    def __init__(self, vault_url, secret_names):
+        credential = DefaultAzureCredential()
+        client = SecretClient(vault_url=vault_url, credential=credential)
+
+        self._secrets = {}
+        for name in secret_names:
+            secret = client.get_secret(name)
+            self._secrets[name] = secret.value
+
+    def get(self, secret_name):
+        return self._secrets.get(secret_name)
+
+# At application startup
+config = AppConfig(
+    vault_url="https://kv-ragpipeline-prod.vault.azure.net/",
+    secret_names=["openai-api-key", "cosmosdb-connection-string",
+                  "blob-storage-key"]
+)
+
+# During request processing - no vault calls
+api_key = config.get("openai-api-key")
+
+# Log Key Vault 429 responses so cache TTL can be tuned.
+import logging
+
+logger = logging.getLogger("keyvault")
+
+def get_secret_with_monitoring(cache, secret_name):
+    try:
+        return cache.get_secret(secret_name)
+    except HttpResponseError as e:
+        if e.status_code == 429:
+            logger.warning(
+                "Key Vault throttled request for '%s'. "
+                "Consider increasing cache TTL.", secret_name
+            )
+        raise

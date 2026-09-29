@@ -1,0 +1,68 @@
+# Samples from:
+# https://learn.microsoft.com/en-us/training/modules/manage-app-secrets-key-vault/4-handle-versioning-rotation
+
+# Create successive versions of a secret, then retrieve the latest or a chosen version.
+from azure.identity import DefaultAzureCredential
+from azure.keyvault.secrets import SecretClient
+
+credential = DefaultAzureCredential()
+client = SecretClient(
+    vault_url="https://kv-ragpipeline-prod.vault.azure.net/",
+    credential=credential
+)
+
+# Create initial version
+initial = client.set_secret("cosmosdb-connection-string", "AccountEndpoint=https://...")
+print(f"Version 1: {initial.properties.version}")
+
+# Create new version with updated value
+updated = client.set_secret("cosmosdb-connection-string", "AccountEndpoint=https://new...")
+print(f"Version 2: {updated.properties.version}")
+
+# Retrieve latest version (returns version 2)
+latest = client.get_secret("cosmosdb-connection-string")
+
+# Retrieve specific version (returns version 1)
+specific = client.get_secret("cosmosdb-connection-string",
+                              version=initial.properties.version)
+
+# Inspect the version history and show each version's status and dates.
+versions = client.list_properties_of_secret_versions("cosmosdb-connection-string")
+
+for version in versions:
+    print(f"Version: {version.version}")
+    print(f"  Created: {version.created_on}")
+    print(f"  Enabled: {version.enabled}")
+    print(f"  Expires: {version.expires_on}")
+
+# On downstream authentication failure, refetch the latest secret and retry.
+from azure.core.exceptions import HttpResponseError
+
+def call_downstream_service(client, secret_name, max_retries=1):
+    """Retrieve secret and call service, refreshing on auth failure."""
+    secret_value = client.get_secret(secret_name).value
+
+    for attempt in range(max_retries + 1):
+        try:
+            # Use secret_value to authenticate with downstream service
+            result = connect_to_service(secret_value)
+            return result
+        except AuthenticationError:
+            if attempt < max_retries:
+                # Credential might be rotated - refresh from Key Vault
+                secret_value = client.get_secret(secret_name).value
+            else:
+                raise
+
+# Set a secret's expiration date to signal when its credential should be replaced.
+from datetime import datetime, timezone, timedelta
+
+expiration_date = datetime.now(timezone.utc) + timedelta(days=90)
+
+client.set_secret(
+    "openai-api-key",
+    "sk-newkey789",
+    expires_on=expiration_date,
+    content_type="text/plain",
+    tags={"rotation-policy": "90-days", "service": "azure-openai"}
+)
