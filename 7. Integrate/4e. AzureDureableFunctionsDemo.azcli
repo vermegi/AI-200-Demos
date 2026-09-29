@@ -1,0 +1,59 @@
+# Design reliable workflow steps
+# Microsoft Learn:
+# https://learn.microsoft.com/en-us/training/modules/orchestrate-durable-functions/5-design-reliable-workflow-steps
+
+# Retry an activity with a bounded number of attempts.
+import azure.durable_functions as df
+
+retry_options = df.RetryOptions(
+    first_retry_interval_in_milliseconds=5_000,
+    max_number_of_attempts=3,
+)
+
+result = yield context.call_activity_with_retry(
+    "process_document",
+    retry_options,
+    {
+        "operation_id": operation_id,
+        "document_id": document["document_id"],
+        "blob_url": document["blob_url"],
+    },
+)
+
+# Make a result write safe to repeat.
+import json
+from azure.core.exceptions import ResourceExistsError
+
+def persist_result(request: dict) -> dict:
+    blob_name = f"results/{request['operation_id']}.json"
+    blob_client = results_container.get_blob_client(blob_name)
+    payload = json.dumps(request["result"])
+
+    try:
+        blob_client.upload_blob(payload, overwrite=False)
+        write_status = "Created"
+    except ResourceExistsError:
+        write_status = "AlreadyExists"
+
+    return {
+        "operation_id": request["operation_id"],
+        "result_url": blob_client.url,
+        "write_status": write_status,
+    }
+
+# Compensate when processing exhausts its retries.
+try:
+    result = yield context.call_activity_with_retry(
+        "process_document",
+        retry_options,
+        process_request,
+    )
+except Exception:
+    yield context.call_activity(
+        "compensate_document",
+        {
+            "operation_id": process_request["operation_id"],
+            "reason": "ProcessingFailed",
+        },
+    )
+    raise

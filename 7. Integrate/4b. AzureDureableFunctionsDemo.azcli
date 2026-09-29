@@ -1,0 +1,46 @@
+# Separate orchestration logic from activity work
+# Microsoft Learn:
+# https://learn.microsoft.com/en-us/training/modules/orchestrate-durable-functions/2-separate-orchestrator-activity-responsibilities
+
+# Orchestrators can replay, so use replay-safe context values (context.current_utc_datetime).
+from datetime import timedelta
+import azure.durable_functions as df
+
+def orchestrator(
+	context: df.DurableOrchestrationContext,
+):
+	review_deadline = context.current_utc_datetime + timedelta(hours=24)
+	review_timer = context.create_timer(review_deadline)
+
+	yield review_timer
+	return {"status": "ReviewTimedOut"}
+
+# The orchestrator coordinates; the activity performs external work.
+app = df.DFApp()
+
+@app.orchestration_trigger(context_name="context")
+def document_orchestrator(
+	context: df.DurableOrchestrationContext,
+):
+	document = context.get_input()
+	result = yield context.call_activity("analyze_document", document)
+	return result
+
+@app.activity_trigger(input_name="document")
+def analyze_document(document: dict) -> dict:
+	document_text = read_blob_text(document["blob_url"])
+	model_result = call_classification_model(document_text)
+	return {
+		"document_id": document["document_id"],
+		"category": model_result["category"],
+		"confidence": model_result["confidence"],
+	}
+
+# Suppress orchestrator logs during replay.
+import logging
+
+if not context.is_replaying:
+	logging.info(
+		"Scheduling document analysis for orchestration %s",
+		context.instance_id,
+	)
