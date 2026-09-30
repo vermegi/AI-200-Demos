@@ -189,3 +189,4 @@ output name string = keyVault.name
 output uri string = keyVault.properties.vaultUri
 output clientIdentityName string = clientIdentity.name
 output clientIdentityClientId string = clientIdentity.properties.clientId
+output clientIdentityPrincipalId string = clientIdentity.properties.principalId

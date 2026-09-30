@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: appconfig-client
+  labels:
+    app: appconfig-client
+    version: v1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: appconfig-client
+      version: v1
+  template:
+    metadata:
+      labels:
+        app: appconfig-client
+        version: v1
+        azure.workload.identity/use: "true"
+    spec:
+      # This service account is federated with the existing Key Vault client identity.
+      serviceAccountName: keyvault-client-sa
+      containers:
+      - name: client
+        image: ACR_ENDPOINT/appconfig-client:latest
+        imagePullPolicy: Always
+        ports:
+        - name: http
+          containerPort: 5000
+          protocol: TCP
+        envFrom:
+        - configMapRef:
+            name: appconfig-client-config
+        livenessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: 15
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"

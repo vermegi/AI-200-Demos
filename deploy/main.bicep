@@ -141,6 +141,11 @@ type keyVaultOutputType = {
   clientIdentityClientId: string
 }
 
+type appConfigurationOutputType = {
+  name: string
+  endpoint: string
+}
+
 var resourceGroupName = 'rg-AI200-${userHash}'
 var registryName = 'acr${userHash}'
 var appServicePlanName = 'plan-docprocessor-${userHash}'
@@ -163,6 +168,7 @@ var postgresDatabaseName = 'postgres'
 var redisName = 'amr-exercise-${userHash}'
 var serviceBusName = take('sbns-exercise-${userHash}', 50)
 var eventGridName = take('egns-exercise-${userHash}', 50)
+var appConfigurationName = take('appconfig-${userHash}', 50)
 var keyVaultName = 'kv-${uniqueString(subscription().id, resourceGroup.name, principalId)}'
 
 resource resourceGroup 'Microsoft.Resources/resourceGroups@2025-04-01' = {
@@ -318,6 +324,17 @@ module keyVault './key-vault.bicep' = {
   }
 }
 
+module appConfiguration './app-configuration.bicep' = {
+  scope: az.resourceGroup(resourceGroup.name)
+  params: {
+    name: appConfigurationName
+    location: location
+    userPrincipalId: principalId
+    clientIdentityName: keyVaultClientIdentityName
+    keyVaultUri: keyVault.outputs.uri
+  }
+}
+
 module foundry './foundry.bicep' = {
   scope: az.resourceGroup(resourceGroup.name)
   params: {
@@ -358,6 +375,10 @@ module cosmos './cosmos.bicep' = {
 }
 
 output resourceGroup string = resourceGroup.name
+output appConfiguration appConfigurationOutputType = {
+  name: appConfiguration.outputs.name
+  endpoint: appConfiguration.outputs.endpoint
+}
 output containerRegistry containerRegistryOutputType = {
   name: registry.outputs.name
   resourceId: registry.outputs.resourceId

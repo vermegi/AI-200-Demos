@@ -6,6 +6,7 @@ $openaiApiKey = "sk-proj-abc123def456ghi789jkl012mno345pqr678stu901vwx"
 $cosmosDbConnectionString = "AccountEndpoint=https://mycosmosdb.documents.azure.com:443/;AccountKey=abc123def456ghi789=="
 
 # USE MCAPS ACCOUNT!
+az logout
 az login
 
 $myId = az ad signed-in-user show --query id --output tsv
@@ -87,14 +88,16 @@ $eventGridApprovedSubscription = $outputs.eventGrid.value.approvedSubscription
 $eventGridAllEventsSubscription = $outputs.eventGrid.value.allEventsSubscription
 $eventGridHostname = $outputs.eventGrid.value.hostname
 $eventGridEndpoint = $outputs.eventGrid.value.endpoint
-$keyVault = $outputs.keyVault.value.name
-$keyVaultUrl = $outputs.keyVault.value.uri
-$keyVaultClientIdentityName = $outputs.keyVault.value.clientIdentity
-$keyVaultClientIdentityClientId = $outputs.keyVault.value.clientIdentityClientId
 $functionApp = "func-document-tools-$userHash"
 $functionAppUrl = "https://$functionApp.azurewebsites.net"
 $functionStorageAccount = "stdoctools$userHash"
 $mcpFrontDoorUrl = "$frontDoorUrl/runtime/webhooks/mcp"
+$keyVault = $outputs.keyVault.value.name
+$keyVaultUrl = $outputs.keyVault.value.uri
+$keyVaultClientIdentityName = $outputs.keyVault.value.clientIdentity
+$keyVaultClientIdentityClientId = $outputs.keyVault.value.clientIdentityClientId
+$appConfiguration = $outputs.appConfiguration.value.name
+$appConfigurationEndpoint = $outputs.appConfiguration.value.endpoint
 
 echo $rg
 echo $acrName
@@ -158,12 +161,16 @@ echo $eventGridApprovedSubscription
 echo $eventGridAllEventsSubscription
 echo $eventGridHostname
 echo $eventGridEndpoint
-echo $keyVault
-echo $keyVaultUrl
 echo $functionApp
 echo $functionAppUrl
 echo $functionStorageAccount
 echo $mcpFrontDoorUrl
+echo $keyVault
+echo $keyVaultUrl
+echo $keyVaultClientIdentityName
+echo $keyVaultClientIdentityClientId
+echo $appConfiguration
+echo $appConfigurationEndpoint
 
 
 $privateEndpointConnectionName = az network private-endpoint-connection list `

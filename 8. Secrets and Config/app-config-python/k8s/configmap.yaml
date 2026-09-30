@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: appconfig-client-config
+  labels:
+    app: appconfig-client
+data:
+  AZURE_APPCONFIG_ENDPOINT: "APPCONFIG_ENDPOINT_VALUE"
