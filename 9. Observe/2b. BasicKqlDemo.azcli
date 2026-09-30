@@ -1,0 +1,20 @@
+# Show the 20 slowest failed requests from the last hour.
+requests
+| where timestamp > ago(1h)
+| where success == false
+| project timestamp, name, resultCode, duration, cloud_RoleName
+| top 20 by duration desc
+
+
+# Count requests and average duration by service and hour.
+requests
+| where timestamp > ago(24h)
+| summarize requestCount = count(), avgDuration = avg(duration)
+    by bin(timestamp, 1h), cloud_RoleName
+
+
+# Chart hourly request counts by service.
+requests
+| where timestamp > ago(24h)
+| summarize requestCount = count() by bin(timestamp, 1h), cloud_RoleName
+| render timechart

@@ -1,0 +1,16 @@
+# Show failed requests by service as a dashboard bar chart.
+requests
+| where timestamp > ago(24h)
+| where success == false
+| summarize failedCount = count() by cloud_RoleName
+| render barchart
+
+
+# Chart request latency percentiles over time.
+requests
+| where timestamp > ago(24h)
+| summarize p50 = percentile(duration, 50),
+    p95 = percentile(duration, 95),
+    p99 = percentile(duration, 99)
+    by bin(timestamp, 1h)
+| render timechart

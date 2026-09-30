@@ -1,0 +1,39 @@
+# Chart hourly exception counts by exception type.
+exceptions
+| where timestamp > ago(24h)
+| summarize exceptionCount = sum(itemCount) by bin(timestamp, 1h), type
+| render timechart
+
+
+# Rank exception types and operations by exception count.
+exceptions
+| where timestamp > ago(24h)
+| summarize exceptionCount = sum(itemCount) by type, operation_Name
+| top 10 by exceptionCount desc
+
+
+# Correlate exceptions with their originating requests.
+exceptions
+| where timestamp > ago(24h)
+| join kind=inner (
+    requests
+    | project requestName = name, requestDuration = duration, operation_Id, requestRoleName = cloud_RoleName
+) on operation_Id
+| project timestamp, exceptionType = type, exceptionMessage = outerMessage,
+    requestName, requestDuration, cloud_RoleName = requestRoleName
+| top 20 by timestamp desc
+
+
+# Calculate dependency latency percentiles by target and type.
+dependencies
+| where timestamp > ago(24h)
+| summarize avg(duration), percentiles(duration, 50, 95, 99) by target, type
+| order by percentile_duration_95 desc
+
+
+# Rank failed dependencies by target, result code, and service.
+dependencies
+| where timestamp > ago(24h)
+| where success == false
+| summarize failureCount = count() by target, resultCode, cloud_RoleName
+| order by failureCount desc

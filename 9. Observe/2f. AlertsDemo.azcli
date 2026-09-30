@@ -1,0 +1,11 @@
+# Detect services with more than 10 failed requests.
+requests
+| where success == false
+| summarize failedCount = count() by cloud_RoleName
+| where failedCount > 10
+
+
+# Detect services whose p95 response time exceeds three seconds.
+requests
+| summarize p95Duration = percentile(duration, 95) by cloud_RoleName
+| where p95Duration > 3000
