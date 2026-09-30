@@ -1,11 +1,8 @@
-$repoRoot = Get-Location
 $repoRoot
-$SERVICE_BUS_FQDN = $serviceBusFqdn
-
-$SERVICE_BUS_FQDN
+$serviceBusFqdn
 
 # Set as an environment variable so the Python app can connect to Azure Service Bus.
-$env:SERVICE_BUS_FQDN = $SERVICE_BUS_FQDN
+$env:SERVICE_BUS_FQDN = $serviceBusFqdn
 
 # Configure the Python environment.
 cd (Join-Path $repoRoot "7. Integrate\service-bus-python\client")

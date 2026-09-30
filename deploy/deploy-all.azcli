@@ -62,6 +62,7 @@ $cosmosVectorDatabase = $outputs.cosmos.value.vectorDatabase
 $cosmosVectorContainer = $outputs.cosmos.value.vectorContainer
 $cosmosIndexOptimizationDatabase = $outputs.cosmos.value.indexOptimizationDatabase
 $cosmosIndexOptimizationContainers = $outputs.cosmos.value.indexOptimizationContainers
+$cosmosClientIdentityName = $outputs.cosmos.value.clientIdentityName
 $cosmosClientIdentityClientId = $outputs.cosmos.value.clientIdentityClientId
 $postgresServer = $outputs.postgres.value.server
 $postgresHost = $outputs.postgres.value.host
@@ -138,6 +139,7 @@ echo $cosmosVectorDatabase
 echo $cosmosVectorContainer
 echo $cosmosIndexOptimizationDatabase
 echo $cosmosIndexOptimizationContainers
+echo $cosmosClientIdentityName
 echo $cosmosClientIdentityClientId
 echo $postgresServer
 echo $postgresHost

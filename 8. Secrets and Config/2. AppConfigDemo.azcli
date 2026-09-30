@@ -1,6 +1,6 @@
 # Variables
-$repoRoot = Get-Location
 $repoRoot
+$appConfigurationEndpoint
 
 # The deployment script exposes the App Configuration endpoint in this variable.
 $env:AZURE_APPCONFIG_ENDPOINT = $appConfigurationEndpoint

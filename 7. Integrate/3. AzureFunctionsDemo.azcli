@@ -1,5 +1,4 @@
-$repoRoot = Get-Location
-
+$repoRoot
 cd (Join-Path $repoRoot "7. Integrate")
 
 mkdir mcp-server-functions

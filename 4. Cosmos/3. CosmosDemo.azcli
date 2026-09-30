@@ -1,21 +1,19 @@
 # Variables
-$repoRoot = Get-Location
-$userHash = "20260902"
-$rg = "rg-AI200-$userHash"
-$location = "francecentral"
-
+$repoRoot
 $userHash
+$rg
+$location 
 
 # The Cosmos DB account, index optimization database, containers, private endpoint,
 # managed identity, and base federated credentials are created by the Bicep templates in .\deploy.
-$cosmosAccount = "cosmos-rag-$userHash"
-$cosmosIndexOptimizationDatabase = "indexoptimize"
-$cosmosIndexOptimizationContainers = @("vectors-flat", "vectors-quantized", "vectors-diskann")
+$cosmosAccount
+$cosmosIndexOptimizationDatabase
+$cosmosIndexOptimizationContainers
 
 # Existing container platform resources, reused for the AKS deployment.
-$acrName = "acr$userHash"
-$aksName = "aks-$userHash"
-$identityName = "id-cosmos-client-$userHash"
+$acrName
+$aksCluster
+$cosmosClientIdentityName
 
 cd (Join-Path $repoRoot "4. Cosmos")
 
@@ -50,12 +48,12 @@ $cosmosEndpoint = az cosmosdb show `
 
 # Confirm the ACR and AKS cluster created in the AKS demo still exist.
 az acr show --resource-group $rg --name $acrName --query name --output tsv
-az aks show --resource-group $rg --name $aksName --query name --output tsv
+az aks show --resource-group $rg --name $aksCluster --query name --output tsv
 
 # Resolve the shared client identity and AKS OIDC issuer used by Workload Identity.
 $cosmosClientIdentityClientId = az identity show `
 	--resource-group $rg `
-	--name $identityName `
+	--name $cosmosClientIdentityName `
 	--query clientId `
 	--output tsv
 

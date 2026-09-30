@@ -3,19 +3,15 @@
 # https://microsoftlearning.github.io/mslearn-azure-ai/instructions/azure-managed-redis/02-amr-pub-sub.html
 
 # Use the values captured by deploy\deploy-all.azcli.
-$repoRoot = Get-Location
-$REDIS_HOST = $redisHost
-$REDIS_PORT = $redisPort
-$REDIS_DATABASE = $redisDatabase
-
-$REDIS_HOST
-$REDIS_PORT
-$REDIS_DATABASE
+$repoRoot
+$redisHost
+$redisPort
+$redisDatabase
 
 # Set the endpoint values as environment variables for the Flask app.
-$env:REDIS_HOST = $REDIS_HOST
-$env:REDIS_PORT = $REDIS_PORT
-$env:REDIS_DATABASE = $REDIS_DATABASE
+$env:REDIS_HOST = $redisHost
+$env:REDIS_PORT = $redisPort
+$env:REDIS_DATABASE = $redisDatabase
 
 # Configure the Python environment.
 cd (Join-Path $repoRoot "6. Redis\amr-pub-sub-python\client")

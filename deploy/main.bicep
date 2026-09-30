@@ -100,6 +100,7 @@ type cosmosOutputType = {
   vectorContainer: string
   indexOptimizationDatabase: string
   indexOptimizationContainers: string[]
+  clientIdentityName: string
   clientIdentityClientId: string
 }
 
@@ -453,6 +454,7 @@ output cosmos cosmosOutputType = {
   vectorContainer: cosmos.outputs.vectorContainerName
   indexOptimizationDatabase: cosmos.outputs.indexOptimizationDatabaseName
   indexOptimizationContainers: cosmos.outputs.indexOptimizationContainerNames
+  clientIdentityName: cosmos.outputs.clientIdentityName
   clientIdentityClientId: cosmos.outputs.clientIdentityClientId
 }
 output postgres postgresOutputType = {

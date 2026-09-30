@@ -1,13 +1,12 @@
 # Variables
-$repoRoot = Get-Location
-$userHash = "20260616"
-$rg = "rg-AI200-$userHash"
-$location = "francecentral"
-
-$acrName = "acr$userHash"
-$aksCluster = "aks-$userHash"
-$foundryAccount = "foundry-resource-$userHash"
-$foundryProjectName = "foundry-project-$userHash"
+$repoRoot
+$userHash
+$rg
+$location
+$acrName
+$aksCluster
+$foundryAccount
+$foundryProject
 
 cd (Join-Path $repoRoot "3. AKS")
 
@@ -17,7 +16,6 @@ az acr show --resource-group $rg --name $acrName
 
 # Inspect the model deployed to the Microsoft Foundry resource.
 $foundryModel = "gpt-5-mini"
-$foundryAccount
 
 az cognitiveservices account deployment show `
 	--name $foundryAccount `

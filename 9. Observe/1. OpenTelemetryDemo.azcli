@@ -1,4 +1,6 @@
-$repoRoot = Get-Location
+$repoRoot
+$applicationInsightsConnectionString
+
 $env:APPLICATIONINSIGHTS_CONNECTION_STRING = $applicationInsightsConnectionString
 
 # Configure the Python environment.
