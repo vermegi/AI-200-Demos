@@ -1,0 +1,27 @@
+# Debug distributed flows with trace data
+# Microsoft Learn:
+# https://learn.microsoft.com/en-us/training/modules/instrument-app-opentelemetry/6-debug-distributed-flows-trace-data?pivots=text
+
+# Find slow requests and summarize by service.
+requests
+| where duration > 3000
+| summarize count(), avg(duration) by cloud_RoleName
+| order by avg_duration desc
+
+# Find dependencies associated with slow requests.
+requests
+| where duration > 5000
+| join kind=inner (dependencies) on operation_Id
+| project timestamp, requestName = name, requestDuration = duration,
+    dependencyName = name1, dependencyDuration = duration1,
+    dependencyTarget = target
+| order by requestDuration desc
+
+# Analyze embedding performance and token counts by model.
+dependencies
+| where name == "GenerateEmbedding"
+| extend tokenCount = toint(customDimensions["embedding.token_count"]),
+    model = tostring(customDimensions["embedding.model"])
+| summarize avg(duration), percentile(duration, 95),
+    avg(tokenCount) by model
+| order by avg_duration desc
