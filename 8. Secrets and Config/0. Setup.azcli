@@ -6,4 +6,7 @@ Expand-Archive `
     -DestinationPath (Join-Path $repoRoot "8. Secrets and Config\key-vault-python") `
     -Force
 
-    
+Expand-Archive `
+    -Path (Join-Path $repoRoot "mslearn-azure-ai\downloads\python\app-config-python.zip") `
+    -DestinationPath (Join-Path $repoRoot "8. Secrets and Config\app-config-python") `
+    -Force
