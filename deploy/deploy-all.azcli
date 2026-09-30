@@ -98,6 +98,9 @@ $keyVaultClientIdentityName = $outputs.keyVault.value.clientIdentity
 $keyVaultClientIdentityClientId = $outputs.keyVault.value.clientIdentityClientId
 $appConfiguration = $outputs.appConfiguration.value.name
 $appConfigurationEndpoint = $outputs.appConfiguration.value.endpoint
+$applicationInsightsName = $outputs.applicationInsights.value.name
+$applicationInsightsResourceId = $outputs.applicationInsights.value.resourceId
+$applicationInsightsConnectionString = $outputs.applicationInsights.value.connectionString
 
 echo $rg
 echo $acrName
@@ -171,7 +174,9 @@ echo $keyVaultClientIdentityName
 echo $keyVaultClientIdentityClientId
 echo $appConfiguration
 echo $appConfigurationEndpoint
-
+echo $applicationInsightsName
+echo $applicationInsightsResourceId
+echo $applicationInsightsConnectionString
 
 $privateEndpointConnectionName = az network private-endpoint-connection list `
   --resource-group $rg `

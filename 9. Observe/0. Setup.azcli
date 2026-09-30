@@ -1,0 +1,8 @@
+$repoRoot = Get-Location
+$repoRoot
+
+Expand-Archive `
+    -Path (Join-Path $repoRoot "mslearn-azure-ai\downloads\python\instrument-app-python.zip") `
+    -DestinationPath (Join-Path $repoRoot "9. Observe\instrument-app-python") `
+    -Force
+

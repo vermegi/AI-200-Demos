@@ -73,6 +73,12 @@ type logAnalyticsOutputType = {
   workspace: string
 }
 
+type applicationInsightsOutputType = {
+  name: string
+  resourceId: string
+  connectionString: string
+}
+
 type foundryOutputType = {
   account: string
   endpoint: string
@@ -158,6 +164,7 @@ var foundryName = 'foundry-resource-${userHash}'
 var foundryProjectName = 'foundry-project-${userHash}'
 var aksName = 'aks-${userHash}'
 var logAnalyticsWorkspaceName = 'log-ai200-${userHash}'
+var applicationInsightsName = 'appi-exercise-${userHash}'
 var functionAppName = take('func-document-tools-${userHash}', 60)
 var functionStorageAccountName = take('stdoctools${userHash}', 24)
 var cosmosName = take('cosmos-rag-${userHash}', 44)
@@ -181,6 +188,16 @@ module logAnalytics './log-analytics.bicep' = {
   params: {
     name: logAnalyticsWorkspaceName
     location: location
+  }
+}
+
+module applicationInsights './application-insights.bicep' = {
+  scope: az.resourceGroup(resourceGroup.name)
+  params: {
+    name: applicationInsightsName
+    location: location
+    logAnalyticsWorkspaceName: logAnalytics.outputs.name
+    userPrincipalId: principalId
   }
 }
 
@@ -411,6 +428,11 @@ output containerApps containerAppsOutputType = {
 }
 output logAnalytics logAnalyticsOutputType = {
   workspace: logAnalytics.outputs.name
+}
+output applicationInsights applicationInsightsOutputType = {
+  name: applicationInsights.outputs.name
+  resourceId: applicationInsights.outputs.resourceId
+  connectionString: applicationInsights.outputs.connectionString
 }
 output foundry foundryOutputType = {
   account: foundry.outputs.name
