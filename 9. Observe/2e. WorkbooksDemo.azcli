@@ -1,0 +1,8 @@
+# Show request success rates using the workbook time-range parameter.
+requests
+| where timestamp > ago({TimeRange})
+| summarize totalRequests = count(),
+    failedRequests = countif(success == false)
+    by cloud_RoleName
+| extend successRate = round(100.0 * (totalRequests - failedRequests) / totalRequests, 2)
+| project cloud_RoleName, totalRequests, failedRequests, successRate

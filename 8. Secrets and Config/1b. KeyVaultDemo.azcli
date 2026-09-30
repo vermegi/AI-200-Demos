@@ -1,0 +1,7 @@
+# Code fragment - focus on setting a secret with content_type
+client.set_secret(
+    "openai-api-key",
+    "sk-abc123def456",
+    content_type="text/plain",
+    tags={"environment": "production", "team": "ai-platform"}
+)

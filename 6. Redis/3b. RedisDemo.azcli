@@ -1,0 +1,151 @@
+# Redis Vector Index and Query Examples for Semantic Search
+# Microsoft Learn:
+# https://learn.microsoft.com/en-us/training/modules/implement-vector-storage-azure-managed-redis/2-index-query-vector-data
+
+# Vector search compares embedding vectors to find items with similar meaning.
+# Redis stores each vector with metadata such as title, content, or category.
+# RediSearch provides the index and query commands used by these examples.
+
+# Creating a vector index.
+# TextField values can be returned or filtered. VectorField tells Redis where
+# the embedding is stored and how to compare it.
+from redis.commands.search.field import TextField, VectorField
+from redis.commands.search.index_definition import IndexDefinition, IndexType
+from redis.commands.search.query import Query
+import numpy as np
+
+schema = (
+    TextField("title"),
+    TextField("content"),
+    VectorField(
+        "embedding",
+        "HNSW",
+        {
+            "TYPE": "FLOAT32",
+            "DIM": 1536,
+            "DISTANCE_METRIC": "COSINE",
+        },
+    ),
+)
+
+redis_client.ft("idx:documents").create_index(
+    fields=schema,
+    definition=IndexDefinition(
+        prefix=["doc:"],
+        index_type=IndexType.HASH,
+    ),
+)
+
+# DIM must exactly match the number of values produced by the embedding model.
+# FLOAT32 is a common memory-efficient format for AI embeddings.
+# COSINE is commonly used for text embeddings because it compares direction.
+# HNSW is fast for large datasets; FLAT is exact and can suit small datasets.
+
+# Storing a vector with metadata.
+# Redis hashes keep the binary vector and searchable context together.
+embedding = np.array([0.1, 0.2, 0.3, 0.4], dtype=np.float32)
+
+redis_client.hset(
+    "doc:001",
+    mapping={
+        "title": "Getting Started with Azure AI",
+        "content": "Azure AI Services provide pre-built models...",
+        "embedding": embedding.tobytes(),
+        "category": "documentation",
+    },
+)
+
+# When a key matches the doc: prefix, RediSearch automatically indexes the
+# vector fields defined in the index schema.
+
+# Bulk ingestion with a pipeline.
+# A pipeline batches many HSET commands into fewer network round trips.
+# documents is expected to contain id, title, content, embedding, and category.
+pipeline = redis_client.pipeline()
+
+for doc in documents:
+    vector_bytes = np.array(
+        doc["embedding"],
+        dtype=np.float32,
+    ).tobytes()
+
+    pipeline.hset(
+        f"doc:{doc['id']}",
+        mapping={
+            "title": doc["title"],
+            "content": doc["content"],
+            "embedding": vector_bytes,
+            "category": doc.get("category", "general"),
+        },
+    )
+
+pipeline.execute()
+
+# Basic KNN similarity query.
+# KNN returns the K nearest vectors. The query vector must have the same DIM
+# as the index, and dialect(2) is required for vector queries.
+query_bytes = np.array(
+    query_embedding,
+    dtype=np.float32,
+).tobytes()
+
+query = (
+    Query("*=>[KNN 5 @embedding $query_vec AS score]")
+    .return_fields("title", "content", "score")
+    .sort_by("score")
+    .dialect(2)
+)
+
+results = redis_client.ft("idx:documents").search(
+    query,
+    query_params={"query_vec": query_bytes},
+)
+
+# For COSINE distance, lower scores generally mean greater similarity.
+for document in results.docs:
+    print(document.title, document.score)
+
+# Hybrid search with metadata filtering.
+# The category filter limits the candidates before Redis finds the nearest
+# vectors. This is useful for queries such as "similar documentation only".
+hybrid_query = (
+    Query("@category:{documentation}=>[KNN 3 @embedding $query_vec AS score]")
+    .return_fields("title", "category", "score")
+    .sort_by("score")
+    .dialect(2)
+)
+
+results = redis_client.ft("idx:documents").search(
+    hybrid_query,
+    query_params={"query_vec": query_bytes},
+)
+
+# Range query with a similarity threshold.
+# KNN always returns a chosen number of results. VECTOR_RANGE returns every
+# vector within the specified distance, so the result count can vary.
+range_query = (
+    Query("@embedding:[VECTOR_RANGE 0.2 $query_vec]=>{$YIELD_DISTANCE_AS: score}")
+    .return_fields("title", "score")
+    .sort_by("score")
+    .dialect(2)
+)
+
+results = redis_client.ft("idx:documents").search(
+    range_query,
+    query_params={"query_vec": query_bytes},
+)
+
+# Tune HNSW search effort.
+# EF_RUNTIME controls how many graph nodes Redis explores. Higher values can
+# improve recall but may increase query time.
+tuned_query = Query(
+    "*=>[KNN 10 @embedding $query_vec EF_RUNTIME 200 AS score]"
+).dialect(2)
+
+# Important vector-search checks:
+# - Query and indexed vectors must have identical dimensions.
+# - Choose COSINE, L2, or IP to match the embedding model and data.
+# - COSINE is common for text; L2 can suit spatial or image data.
+# - HNSW trades a small amount of exactness for much faster large-scale search.
+# - Keep metadata with the vector so search results have useful context.
+# - Use pipelines when loading many vectors to reduce network overhead.

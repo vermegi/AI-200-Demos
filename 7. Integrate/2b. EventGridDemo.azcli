@@ -1,0 +1,53 @@
+# Work with Event Schemas and Properties
+# Microsoft Learn:
+# https://learn.microsoft.com/en-us/training/modules/event-driven-workflows-event-grid/3-event-schemas-properties?pivots=text
+
+# CloudEvents JSON event for a completed inference operation in a content
+# moderation pipeline.
+{
+    "specversion": "1.0",
+    "type": "com.contoso.ai.InferenceCompleted",
+    "source": "/services/content-moderation",
+    "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "time": "2025-09-15T14:30:00Z",
+    "subject": "/pipelines/moderation/batch-42",
+    "datacontenttype": "application/json",
+    "data": {
+        "modelName": "content-classifier-v3",
+        "requestId": "req-78901",
+        "resultLocation": "https://storage.blob.core.windows.net/results/batch-42.json",
+        "processingDurationMs": 1250,
+        "status": "success",
+        "itemsProcessed": 150
+    }
+}
+
+# Create an event subscription that only receives inference completion events.
+az eventgrid event-subscription create `
+    --name inference-handler-sub `
+    --source-resource-id /subscriptions/{sub-id}/resourceGroups/{rg}/providers/Microsoft.EventGrid/topics/ai-events `
+    --endpoint https://inference-handler.azurewebsites.net/api/events `
+    --included-event-types com.contoso.ai.InferenceCompleted
+
+# Create an event subscription that receives only events from the embeddings
+# pipeline.
+az eventgrid event-subscription create `
+    --name embeddings-sub `
+    --source-resource-id /subscriptions/{sub-id}/resourceGroups/{rg}/providers/Microsoft.EventGrid/topics/ai-events `
+    --endpoint https://embeddings-handler.azurewebsites.net/api/events `
+    --subject-begins-with /pipelines/embeddings
+
+# Create an event subscription that receives only events where the data.status
+# field equals flagged.
+az eventgrid event-subscription create `
+    --name flagged-content-sub `
+    --source-resource-id /subscriptions/{sub-id}/resourceGroups/{rg}/providers/Microsoft.EventGrid/topics/ai-events `
+    --endpoint https://review-service.azurewebsites.net/api/events `
+    --advanced-filter data.status StringIn flagged
+
+# Create a custom topic that accepts CloudEvents format.
+az eventgrid topic create `
+    --name ai-events `
+    --resource-group ai-platform-rg `
+    --location eastus `
+    --input-schema cloudeventschemav1_0

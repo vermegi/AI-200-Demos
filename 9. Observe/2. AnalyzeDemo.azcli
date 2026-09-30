@@ -1,0 +1,82 @@
+$repoRoot = Get-Location
+$env:APPLICATIONINSIGHTS_CONNECTION_STRING = $applicationInsightsConnectionString
+
+# Configure the Python environment.
+cd (Join-Path $repoRoot "9. Observe\analyze-logs-python\client")
+
+# python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+# pip install -r requirements.txt
+
+# Run the analyze logs console app.
+python app.py
+
+# go to app insights --> logs
+requests
+| where success == false
+| summarize failedCount = count() by cloud_RoleName, resultCode
+| order by failedCount desc
+
+
+requests
+| summarize requestCount = count(),
+    avgDuration = avg(duration),
+    p95Duration = percentile(duration, 95)
+    by bin(timestamp, 1h), cloud_RoleName
+| order by timestamp desc
+
+
+exceptions
+| join kind=inner (requests | project requestName = name, operation_Id, cloud_RoleName) on operation_Id
+| summarize exceptionCount = count()
+    by requestName, exceptionType = type, cloud_RoleName
+| order by exceptionCount desc
+| take 15
+
+
+dependencies
+| summarize callCount = count(),
+    avgDuration = avg(duration),
+    p50 = percentile(duration, 50),
+    p95 = percentile(duration, 95),
+    p99 = percentile(duration, 99)
+    by target, type
+| order by p95 desc
+
+
+# Create an action group and alert rule
+
+$alertEmail = az account show --query user.name --output tsv
+$alertEmail
+
+$actionGroupId = az monitor action-group create `
+    --resource-group $rg `
+    --name pipeline-alerts-ag `
+    --short-name PipeAlert `
+    --action email oncall-email $alertEmail `
+    --query id `
+    --output tsv
+
+az monitor scheduled-query create `
+    --resource-group $rg `
+    --name high-failure-rate-alert `
+    --scopes $applicationInsightsResourceId `
+    --action-groups $actionGroupId `
+    --condition "count 'FailedRequests' > 10" `
+    --condition-query 'FailedRequests=requests | where success == false' `
+    --evaluation-frequency 5m `
+    --window-size 5m `
+    --severity 1 `
+    --description "Alert when more than 10 requests fail in a 5-minute window"
+
+az monitor scheduled-query show `
+    --resource-group $rg `
+    --name high-failure-rate-alert `
+    --query "{Name:name, Severity:severity, Enabled:enabled, Window:windowSize, Frequency:evaluationFrequency, Threshold:condition.failingPeriods}" `
+    --output table
+
+az monitor scheduled-query list `
+    --resource-group $rg `
+    --output table
+
+deactivate

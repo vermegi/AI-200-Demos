@@ -1,0 +1,59 @@
+# Samples from:
+# https://learn.microsoft.com/en-us/training/modules/manage-app-settings-app-config/2-connect-app-configuration
+
+# Install the App Configuration provider and Azure identity packages.
+pip install azure-appconfiguration-provider azure-identity
+
+# Connect to App Configuration and access settings using dictionary syntax.
+from azure.appconfiguration.provider import load
+from azure.identity import DefaultAzureCredential
+import os
+
+endpoint = os.environ.get("AZURE_APPCONFIG_ENDPOINT")
+credential = DefaultAzureCredential()
+
+config = load(endpoint=endpoint, credential=credential)
+
+model_endpoint = config["OpenAI:Endpoint"]
+batch_size = config["Pipeline:BatchSize"]
+
+# Load only Pipeline settings with the Production label.
+from azure.appconfiguration.provider import load, SettingSelector
+from azure.identity import DefaultAzureCredential
+
+selects = [
+    SettingSelector(key_filter="Pipeline:*", label_filter="Production")
+]
+
+config = load(
+    endpoint=endpoint,
+    credential=DefaultAzureCredential(),
+    selects=selects
+)
+
+batch_size = config["Pipeline:BatchSize"]
+
+# Remove a shared prefix from keys when loading configuration.
+config = load(
+    endpoint=endpoint,
+    credential=credential,
+    trim_prefixes=["DocPipeline:"]
+)
+
+# Access "DocPipeline:OpenAI:Endpoint" as "OpenAI:Endpoint".
+model_endpoint = config["OpenAI:Endpoint"]
+
+# Refresh configuration when the Sentinel key changes.
+from azure.appconfiguration.provider import load, WatchKey
+from azure.identity import DefaultAzureCredential
+
+config = load(
+    endpoint=endpoint,
+    credential=DefaultAzureCredential(),
+    refresh_on=[WatchKey("Sentinel")],
+    refresh_interval=60
+)
+
+# Call refresh from an application loop or request handler.
+config.refresh()
+batch_size = config["Pipeline:BatchSize"]

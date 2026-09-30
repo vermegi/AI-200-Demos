@@ -1,0 +1,59 @@
+# Variables
+$repoRoot = Get-Location
+$repoRoot
+
+cd (Join-Path $repoRoot "8. Secrets and Config")
+
+az group show --name $rg
+
+# The Key Vault is created by the Bicep templates in .\deploy.
+$keyVault
+$keyVaultUrl
+
+####################################################################
+# Containerize the client and deploy it to the existing AKS cluster.
+####################################################################
+
+# Build and push the client image with an ACR Task.
+# This uses the caller's existing ACR permissions; admin user credentials are not required.
+az acr build `
+    --registry $acrName `
+    --image keyvault-client:latest `
+    --file .\key-vault-python\client\Dockerfile `
+    --source-acr-auth-id [caller] `
+    .\key-vault-python\client\
+
+# Create user-specific manifests without changing the templates.
+$templateConfigMapFile = ".\key-vault-python\k8s\configmap.yaml"
+$configMapFile = ".\key-vault-python\k8s\configmap-$userHash.yaml"
+(Get-Content $templateConfigMapFile -Raw).Replace("KEY_VAULT_URL_VALUE", $keyVaultUrl) | Set-Content $configMapFile -NoNewline
+
+$templateServiceAccountFile = ".\key-vault-python\k8s\serviceaccount.yaml"
+$serviceAccountFile = ".\key-vault-python\k8s\serviceaccount-$userHash.yaml"
+(Get-Content $templateServiceAccountFile -Raw).Replace("MANAGED_IDENTITY_CLIENT_ID", $keyVaultClientIdentityClientId) | Set-Content $serviceAccountFile -NoNewline
+
+$templateDeploymentFile = ".\key-vault-python\k8s\deployment.yaml"
+$deploymentFile = ".\key-vault-python\k8s\deployment-$userHash.yaml"
+(Get-Content $templateDeploymentFile -Raw).Replace("ACR_ENDPOINT", "$acrName.azurecr.io") | Set-Content $deploymentFile -NoNewline
+
+# Apply the ConfigMap, ServiceAccount, Deployment, and public LoadBalancer Service.
+kubectl apply --filename $configMapFile
+kubectl apply --filename $serviceAccountFile
+kubectl apply --filename $deploymentFile
+kubectl apply --filename .\key-vault-python\k8s\service.yaml
+
+# Verify rollout and wait for the public service IP.
+kubectl get deploy,svc,sa
+kubectl rollout status deployment/keyvault-client
+kubectl get service keyvault-client-service
+
+# Browse to http://external_IP
+# - Retrieve secrets (value + metadata)
+# - List secret properties (no values exposed)
+# - Create a new version of openai-api-key
+# - Cached retrieval (cache hits vs Key Vault calls)
+
+# Troubleshooting.
+kubectl get pods --selector app=keyvault-client
+kubectl logs --selector app=keyvault-client --tail 50
+kubectl describe deployment keyvault-client

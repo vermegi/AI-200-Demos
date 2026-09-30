@@ -1,0 +1,63 @@
+# Coordinate human approval with external events
+# Microsoft Learn:
+# https://learn.microsoft.com/en-us/training/modules/orchestrate-durable-functions/4-wait-human-approval-external-events
+
+# Wait for approval or a 24-hour timeout.
+from datetime import timedelta
+import azure.durable_functions as df
+
+def orchestrator(
+    context: df.DurableOrchestrationContext,
+):
+    review_request = context.get_input()
+
+    yield context.call_activity("notify_approver", review_request)
+
+    approval_task = context.wait_for_external_event("ApprovalResponse")
+    deadline = context.current_utc_datetime + timedelta(hours=24)
+    timeout_task = context.create_timer(deadline)
+
+    winner = yield context.task_any([approval_task, timeout_task])
+
+    if winner == approval_task:
+        if not timeout_task.is_completed:
+            timeout_task.cancel()
+
+        response = approval_task.result
+        if response["decision"] == "Approved":
+            return {"status": "Approved"}
+
+        return {"status": "Rejected"}
+
+    return {"status": "TimedOut"}
+
+# Raise the event for the target orchestration instance.
+import json
+import azure.functions as func
+import azure.durable_functions as df
+
+app = df.DFApp(http_auth_level=func.AuthLevel.FUNCTION)
+
+@app.route(route="approvals/{instance_id}", methods=["POST"])
+@app.durable_client_input(client_name="client")
+async def submit_approval(
+    req: func.HttpRequest,
+    client: df.DurableOrchestrationClient,
+) -> func.HttpResponse:
+    instance_id = req.route_params["instance_id"]
+    response = req.get_json()
+
+    reviewer = authorize_reviewer(req)
+    validated_event = validate_approval_response(response, reviewer)
+
+    await client.raise_event(
+        instance_id,
+        "ApprovalResponse",
+        validated_event,
+    )
+
+    return func.HttpResponse(
+        json.dumps({"status": "Accepted"}),
+        status_code=202,
+        mimetype="application/json",
+    )

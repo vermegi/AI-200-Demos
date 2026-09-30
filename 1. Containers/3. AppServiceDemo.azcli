@@ -1,7 +1,7 @@
 # ZIP file with starter code: 
 # https://github.com/MicrosoftLearning/mslearn-azure-ai/raw/main/downloads/python/app-svc-container-python.zip
 # extracted to StarterPythonApp folder
-# reusing ACR from previous demo
+# reusing ACR, app service plan and web app created by deploy/acr.bicep
 
 cd ../../StarterPythonApp
 
@@ -13,9 +13,9 @@ $location = "francecentral"   # Azure region for the resources
 echo $rg
 
 $acrName = "acr$userHash"
-$appPlan = "plan-docprocessor-$userHash"
 $appName = "app-docprocessor-$userHash"
 $containerImage = "docprocessor:v1"
+$appName
 
 az acr build `
     --resource-group $rg `
@@ -23,53 +23,10 @@ az acr build `
     --image $containerImage `
     --file api/Dockerfile `
     --no-logs `
-    --
+    --source-acr-auth-id [caller] `
     api
 
-az appservice plan create `
-    --resource-group $rg `
-    --name $appPlan `
-    --sku P0v3 `
-    --location $location `
-    --is-linux 
-
-az webapp create `
-    --resource-group $rg `
-    --plan $appPlan `
-    --name $appName `
-    --container-image-name "$($acrName).azurecr.io/docprocessor:v1"
-
-# Check in portal: web app will show application error
-# Go to log stream - platform - should show credential error for pulling image from ACR
-
-az webapp identity assign `
-    --resource-group $rg `
-    --name $appName
-
-$PRINCIPAL_ID = az webapp identity show `
-    --resource-group $rg `
-    --name $appName `
-    --query principalId `
-    --output tsv
-
-echo $PRINCIPAL_ID
-
-$ACR_ID = az acr show `
-    --resource-group $rg `
-    --name $acrName `
-    --query id `
-    --output tsv
-
-az role assignment create `
-    --assignee $PRINCIPAL_ID `
-    --scope "$ACR_ID/repositories/docprocessor" `
-    --role "Container Registry Repository Reader"
-
-az webapp config set `
-    --resource-group $rg `
-    --name $appName `
-    --acr-use-identity true `
-    --acr-identity [system]
+# The web app runs a placeholder image until it is pointed at the ACR image below
 
 az webapp config container set `
     --resource-group $rg `
@@ -77,42 +34,18 @@ az webapp config container set `
     --container-image-name "$($acrName).azurecr.io/docprocessor:v1" `
     --container-registry-url "https://$($acrName).azurecr.io"
 
-az webapp config appsettings set `
-    --resource-group $rg `
-    --name $appName `
-    --settings WEBSITES_PORT=80
-
-az webapp config appsettings set `
-    --resource-group $rg `
-    --name $appName `
-    --settings WEBSITES_ENABLE_APP_SERVICE_STORAGE=true
-
-az webapp config set `
-    --resource-group $rg `
-    --name $appName `
-    --always-on true
-
-az webapp log config `
-    --resource-group $rg `
-    --name $appName `
-    --docker-container-logging filesystem
-
 # check app url at /documents
+# The web app only accepts traffic through the Azure Front Door private endpoint
+# $frontDoorUrl comes from the deploy-all.azcli deployment outputs
 
-$APP_URL = az webapp show `
-    --resource-group $rg `
-    --name $appName `
-    --query defaultHostName `
-    --output tsv
-
-Write-Host "Application URL: https://$APP_URL"
+Write-Host "Application URL: $frontDoorUrl"
 
 $body = Get-Content -Raw -Path "document.txt"
-Invoke-RestMethod -Method Post -Uri "https://$APP_URL/process" -ContentType "text/plain" -Body $body | ConvertTo-Json -Depth 10
+Invoke-RestMethod -Method Post -Uri "$frontDoorUrl/process" -ContentType "text/plain" -Body $body | ConvertTo-Json -Depth 10
 
 
 # check app url at /documents again
-
+# the below will NOT work with web app public access disabled!
 az webapp log tail `
     --resource-group $rg `
     --name $appName

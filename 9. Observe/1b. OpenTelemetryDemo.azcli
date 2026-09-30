@@ -1,0 +1,37 @@
+# OpenTelemetry SDK samples
+# Microsoft Learn:
+# https://learn.microsoft.com/en-us/training/modules/instrument-app-opentelemetry/3-add-opentelemetry-sdk?pivots=text
+
+# Install the Azure Monitor OpenTelemetry distro.
+pip install azure-monitor-opentelemetry
+
+# Configure Azure Monitor once at application startup.
+from azure.monitor.opentelemetry import configure_azure_monitor
+
+configure_azure_monitor()
+
+# Set the connection string through an environment variable.
+export APPLICATIONINSIGHTS_CONNECTION_STRING="InstrumentationKey=00000000-0000-0000-0000-000000000000;IngestionEndpoint=https://eastus-0.in.applicationinsights.azure.com/"
+
+# Or pass the connection string to configure_azure_monitor().
+from azure.monitor.opentelemetry import configure_azure_monitor
+
+configure_azure_monitor(
+    connection_string="InstrumentationKey=00000000-0000-0000-0000-000000000000;IngestionEndpoint=https://eastus-0.in.applicationinsights.azure.com/"
+)
+
+# Set service resource attributes for Application Map.
+from azure.monitor.opentelemetry import configure_azure_monitor
+from opentelemetry.sdk.resources import Resource
+
+configure_azure_monitor(
+    resource=Resource.create({
+        "service.name": "embedding-service",
+        "service.namespace": "rag-pipeline",
+        "service.instance.id": "embedding-instance-1",
+    })
+)
+
+# Or set the service attributes through environment variables.
+export OTEL_SERVICE_NAME="embedding-service"
+export OTEL_RESOURCE_ATTRIBUTES="service.namespace=rag-pipeline,service.instance.id=embedding-instance-1"

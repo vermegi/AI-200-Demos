@@ -1,39 +1,11 @@
 $userHash = "20260826"
-$rg = "rg-AI200-$userHash"
 $acrName = "acr$userHash"
-$location = "francecentral"
-
-# TODO: change ACR statement to use ABAC! 
-# Need to update next statements (in ALL following azcli files) then as well to assign the right permissions!
+echo $acrName
 
 # USE MCAPS ACCOUNT!
 az login
 
-# Create ACR in portal or with CLI
-az group create --name $rg --location $location
-az acr create --resource-group $rg --name $acrName --sku Basic --role-assignment-mode rbac-abac
 # show in portal: repositories
-
-$ACR_ID = az acr show --resource-group $rg --name $acrName --query id --output tsv
-echo $ACR_ID
-$MY_ID = az ad signed-in-user show --query id --output tsv
-echo $MY_ID
-
-az role assignment create `
-    --assignee $MY_ID `
-    --scope $ACR_ID `
-    --role "Container Registry Repository Reader"
-
-# needed to list repositories in ACR, not needed for pulling images
-az role assignment create `
-    --assignee $MY_ID `
-    --scope $ACR_ID `
-    --role "Container Registry Repository Catalog Lister"
-
-az role assignment create `
-    --assignee $MY_ID `
-    --scope $ACR_ID `
-    --role "Container Registry Repository Writer"
 
 # Make sure docker desktop is running for this one, otherwise docker login will fail
 az acr login --name $acrName

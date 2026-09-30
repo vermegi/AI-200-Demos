@@ -1,0 +1,9 @@
+.git
+.gitignore
+.venv
+__azurite_db*__.json
+__blobstorage__
+__pycache__
+__queuestorage__
+local.settings.json
+sample.vscode

@@ -1,0 +1,70 @@
+# Variables
+$repoRoot = Get-Location
+$repoRoot
+
+# The deployment script exposes the App Configuration endpoint in this variable.
+$env:AZURE_APPCONFIG_ENDPOINT = $appConfigurationEndpoint
+$env:AZURE_APPCONFIG_ENDPOINT
+
+cd (Join-Path $repoRoot "8. Secrets and Config")
+
+####################################################################
+# Containerize the client and deploy it to the existing AKS cluster.
+####################################################################
+
+# Build and push the client image with an ACR Task.
+# This uses the caller's existing ACR permissions; admin user credentials are not required.
+az acr build `
+	--registry $acrName `
+	--image appconfig-client:latest `
+	--file .\app-config-python\client\Dockerfile `
+	--source-acr-auth-id [caller] `
+	.\app-config-python\client\
+
+# Create user-specific manifests without changing the templates.
+$templateConfigMapFile = ".\app-config-python\k8s\configmap.yaml"
+$configMapFile = ".\app-config-python\k8s\configmap-$userHash.yaml"
+(Get-Content $templateConfigMapFile -Raw).Replace("APPCONFIG_ENDPOINT_VALUE", $appConfigurationEndpoint) | Set-Content $configMapFile -NoNewline
+
+$templateDeploymentFile = ".\app-config-python\k8s\deployment.yaml"
+$deploymentFile = ".\app-config-python\k8s\deployment-$userHash.yaml"
+(Get-Content $templateDeploymentFile -Raw).Replace("ACR_ENDPOINT", "$acrName.azurecr.io") | Set-Content $deploymentFile -NoNewline
+
+$templateServiceAccountFile = ".\app-config-python\k8s\serviceaccount.yaml"
+$serviceAccountFile = ".\app-config-python\k8s\serviceaccount-$userHash.yaml"
+(Get-Content $templateServiceAccountFile -Raw).Replace("MANAGED_IDENTITY_CLIENT_ID", $keyVaultClientIdentityClientId) | Set-Content $serviceAccountFile -NoNewline
+
+# Apply the ConfigMap, Workload Identity service account, Deployment, and public LoadBalancer Service.
+kubectl apply --filename $configMapFile
+kubectl apply --filename $serviceAccountFile
+kubectl apply --filename $deploymentFile
+kubectl apply --filename .\app-config-python\k8s\service.yaml
+
+# Verify rollout and wait for the public service IP.
+kubectl get deploy,svc,sa
+kubectl rollout status deployment/appconfig-client
+kubectl get service appconfig-client-service
+
+# Browse to http://external_IP and use the dashboard to:
+# - Load settings and resolve the Key Vault reference.
+# - List raw setting properties, including labels and content types.
+# - Refresh the Production batch size through the sentinel key.
+
+# Troubleshooting.
+kubectl get pods --selector app=appconfig-client
+kubectl logs --selector app=appconfig-client --tail 50
+kubectl describe deployment appconfig-client
+
+# Configure the Python environment.
+cd (Join-Path $repoRoot "8. Secrets and Config\app-config-python\client")
+
+# python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+# pip install -r requirements.txt
+
+# Run the App Configuration Flask app.
+python app.py
+
+deactivate
+
+

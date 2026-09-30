@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: appconfig-client-service
+  labels:
+    app: appconfig-client
+  annotations:
+    service.beta.kubernetes.io/azure-load-balancer-internal: "false"
+spec:
+  type: LoadBalancer
+  selector:
+    app: appconfig-client
+    version: v1
+  ports:
+  - name: http
+    port: 80
+    targetPort: http
+    protocol: TCP
+  sessionAffinity: None

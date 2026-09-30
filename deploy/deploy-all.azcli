@@ -1,0 +1,209 @@
+$repoRoot = Get-Location
+$userHash = "20260902"
+$location = "francecentral"
+$embeddingsApiKey = "demo-key-12345"
+$openaiApiKey = "sk-proj-abc123def456ghi789jkl012mno345pqr678stu901vwx"
+$cosmosDbConnectionString = "AccountEndpoint=https://mycosmosdb.documents.azure.com:443/;AccountKey=abc123def456ghi789=="
+
+# USE MCAPS ACCOUNT!
+az logout
+az login
+
+$myId = az ad signed-in-user show --query id --output tsv
+$myUpn = az ad signed-in-user show --query userPrincipalName --output tsv
+$myId
+$myUpn
+$templateFile = Join-Path $repoRoot "deploy\main.bicep"
+echo $templateFile
+$deploymentName = "deploy-all-$userHash"
+$deploymentName
+
+az deployment sub create `
+    --name $deploymentName `
+    --location $location `
+    --template-file $templateFile `
+    --parameters userHash=$userHash location=$location principalId=$myId userPrincipalName=$myUpn embeddingsApiKey=$embeddingsApiKey openaiApiKey=$openaiApiKey cosmosDbConnectionString=$cosmosDbConnectionString
+
+$outputs = az deployment sub show --name $deploymentName --query properties.outputs | ConvertFrom-Json
+
+$rg = $outputs.resourceGroup.value
+$acrName = $outputs.containerRegistry.value.name
+$acrId = $outputs.containerRegistry.value.resourceId
+$acrLoginServer = $outputs.containerRegistry.value.loginServer
+$appPlan = $outputs.appService.value.plan
+$appName = $outputs.appService.value.webApp
+$appUrl = $outputs.appService.value.webAppUrl
+$appPrincipalId = $outputs.appService.value.webAppPrincipalId
+$frontDoorProfile = $outputs.privateNetworking.value.frontDoorProfile
+$frontDoorEndpoint = $outputs.privateNetworking.value.frontDoorEndpoint
+$frontDoorUrl = $outputs.privateNetworking.value.frontDoorUrl
+$containerAppsEnvironment = $outputs.containerApps.value.environment
+$containerAppName = $outputs.containerApps.value.app
+$containerAppUrl = $outputs.containerApps.value.appUrl
+$containerAppPrincipalId = $outputs.containerApps.value.appPrincipalId
+$manageContainerApp = $outputs.containerApps.value.manageApp
+$manageContainerAppUrl = $outputs.containerApps.value.manageAppUrl
+$manageContainerAppPrincipalId = $outputs.containerApps.value.manageAppPrincipalId
+$scaleContainerApp = $outputs.containerApps.value.scaleApp
+$scaleContainerAppUrl = $outputs.containerApps.value.scaleAppUrl
+$scaleContainerAppPrincipalId = $outputs.containerApps.value.scaleAppPrincipalId
+$logAnalyticsWorkspace = $outputs.logAnalytics.value.workspace
+$foundryAccount = $outputs.foundry.value.account
+$foundryEndpoint = $outputs.foundry.value.endpoint
+$foundryProject = $outputs.foundry.value.project
+$foundryModelDeployment = $outputs.foundry.value.modelDeployment
+$aksCluster = $outputs.aks.value.cluster
+$aksKubeletObjectId = $outputs.aks.value.kubeletObjectId
+$cosmosAccount = $outputs.cosmos.value.account
+$cosmosEndpoint = $outputs.cosmos.value.endpoint
+$cosmosDatabase = $outputs.cosmos.value.database
+$cosmosContainer = $outputs.cosmos.value.container
+$cosmosVectorDatabase = $outputs.cosmos.value.vectorDatabase
+$cosmosVectorContainer = $outputs.cosmos.value.vectorContainer
+$cosmosIndexOptimizationDatabase = $outputs.cosmos.value.indexOptimizationDatabase
+$cosmosIndexOptimizationContainers = $outputs.cosmos.value.indexOptimizationContainers
+$cosmosClientIdentityClientId = $outputs.cosmos.value.clientIdentityClientId
+$postgresServer = $outputs.postgres.value.server
+$postgresHost = $outputs.postgres.value.host
+$postgresDatabase = $outputs.postgres.value.database
+$postgresAdmin = $outputs.postgres.value.admin
+$redisCluster = $outputs.redis.value.cluster
+$redisHost = $outputs.redis.value.host
+$redisDatabase = $outputs.redis.value.database
+$redisPort = $outputs.redis.value.port
+$redisAccessAssignment = $outputs.redis.value.accessAssignment
+$serviceBusNamespace = $outputs.serviceBus.value.namespace
+$serviceBusResourceId = $outputs.serviceBus.value.resourceId
+$serviceBusFqdn = $outputs.serviceBus.value.fqdn
+$serviceBusQueue = $outputs.serviceBus.value.queue
+$serviceBusTopic = $outputs.serviceBus.value.topic
+$serviceBusNotificationsSubscription = $outputs.serviceBus.value.notificationsSubscription
+$serviceBusHighPrioritySubscription = $outputs.serviceBus.value.highPrioritySubscription
+$serviceBusHighPriorityRule = $outputs.serviceBus.value.highPriorityRule
+$eventGridNamespace = $outputs.eventGrid.value.namespace
+$eventGridResourceId = $outputs.eventGrid.value.resourceId
+$eventGridTopic = $outputs.eventGrid.value.topic
+$eventGridFlaggedSubscription = $outputs.eventGrid.value.flaggedSubscription
+$eventGridApprovedSubscription = $outputs.eventGrid.value.approvedSubscription
+$eventGridAllEventsSubscription = $outputs.eventGrid.value.allEventsSubscription
+$eventGridHostname = $outputs.eventGrid.value.hostname
+$eventGridEndpoint = $outputs.eventGrid.value.endpoint
+$functionApp = "func-document-tools-$userHash"
+$functionAppUrl = "https://$functionApp.azurewebsites.net"
+$functionStorageAccount = "stdoctools$userHash"
+$mcpFrontDoorUrl = "$frontDoorUrl/runtime/webhooks/mcp"
+$keyVault = $outputs.keyVault.value.name
+$keyVaultUrl = $outputs.keyVault.value.uri
+$keyVaultClientIdentityName = $outputs.keyVault.value.clientIdentity
+$keyVaultClientIdentityClientId = $outputs.keyVault.value.clientIdentityClientId
+$appConfiguration = $outputs.appConfiguration.value.name
+$appConfigurationEndpoint = $outputs.appConfiguration.value.endpoint
+$applicationInsightsName = $outputs.applicationInsights.value.name
+$applicationInsightsResourceId = $outputs.applicationInsights.value.resourceId
+$applicationInsightsConnectionString = $outputs.applicationInsights.value.connectionString
+
+echo $rg
+echo $acrName
+echo $acrId
+echo $acrLoginServer
+echo $appPlan
+echo $appName
+echo $appUrl
+echo $appPrincipalId
+echo $frontDoorProfile
+echo $frontDoorEndpoint
+echo $frontDoorUrl
+echo $containerAppsEnvironment
+echo $containerAppName
+echo $containerAppUrl
+echo $containerAppPrincipalId
+echo $manageContainerApp
+echo $manageContainerAppUrl
+echo $manageContainerAppPrincipalId
+echo $scaleContainerApp
+echo $scaleContainerAppUrl
+echo $scaleContainerAppPrincipalId
+echo $logAnalyticsWorkspace
+echo $foundryAccount
+echo $foundryEndpoint
+echo $foundryProject
+echo $foundryModelDeployment
+echo $aksCluster
+echo $aksKubeletObjectId
+echo $cosmosAccount
+echo $cosmosEndpoint
+echo $cosmosDatabase
+echo $cosmosContainer
+echo $cosmosVectorDatabase
+echo $cosmosVectorContainer
+echo $cosmosIndexOptimizationDatabase
+echo $cosmosIndexOptimizationContainers
+echo $cosmosClientIdentityClientId
+echo $postgresServer
+echo $postgresHost
+echo $postgresDatabase
+echo $postgresAdmin
+echo $redisCluster
+echo $redisHost
+echo $redisDatabase
+echo $redisPort
+echo $redisAccessAssignment
+echo $serviceBusNamespace
+echo $serviceBusResourceId
+echo $serviceBusFqdn
+echo $serviceBusQueue
+echo $serviceBusTopic
+echo $serviceBusNotificationsSubscription
+echo $serviceBusHighPrioritySubscription
+echo $serviceBusHighPriorityRule
+echo $eventGridNamespace
+echo $eventGridResourceId
+echo $eventGridTopic
+echo $eventGridFlaggedSubscription
+echo $eventGridApprovedSubscription
+echo $eventGridAllEventsSubscription
+echo $eventGridHostname
+echo $eventGridEndpoint
+echo $functionApp
+echo $functionAppUrl
+echo $functionStorageAccount
+echo $mcpFrontDoorUrl
+echo $keyVault
+echo $keyVaultUrl
+echo $keyVaultClientIdentityName
+echo $keyVaultClientIdentityClientId
+echo $appConfiguration
+echo $appConfigurationEndpoint
+echo $applicationInsightsName
+echo $applicationInsightsResourceId
+echo $applicationInsightsConnectionString
+
+$privateEndpointConnectionName = az network private-endpoint-connection list `
+  --resource-group $rg `
+  --name $appName `
+  --type Microsoft.Web/sites `
+  --query "[0].name" `
+  --output tsv
+$privateEndpointConnectionName
+
+az network private-endpoint-connection approve `
+  --resource-group $rg `
+  --resource-name $appName `
+  --type Microsoft.Web/sites `
+  --name $privateEndpointConnectionName `
+  --description "Approved for Azure Front Door Premium"
+
+$functionPrivateEndpointConnectionName = az network private-endpoint-connection list `
+  --resource-group $rg `
+  --name $functionApp `
+  --type Microsoft.Web/sites `
+  --query "[0].name" `
+  --output tsv
+$functionPrivateEndpointConnectionName
+
+az network private-endpoint-connection approve `
+  --resource-group $rg `
+  --resource-name $functionApp `
+  --type Microsoft.Web/sites `
+  --name $functionPrivateEndpointConnectionName `
+  --description "Approved for Azure Front Door Premium access to the MCP Function App"

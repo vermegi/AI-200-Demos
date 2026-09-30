@@ -1,0 +1,35 @@
+$repoRoot = Get-Location
+$env:APPLICATIONINSIGHTS_CONNECTION_STRING = $applicationInsightsConnectionString
+
+# Configure the Python environment.
+cd (Join-Path $repoRoot "9. Observe\instrument-app-python\client")
+
+# python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+# pip install -r requirements.txt
+
+# Run the Redis data operations console app.
+python app.py
+
+## App Insights: 
+# Search 
+# POST /process-documents
+
+# Logs
+
+dependencies
+| where timestamp > ago(1h)
+| project timestamp, name, duration,
+    documentId = customDimensions["document.id"],
+    stage = customDimensions["document.stage"],
+    slow = customDimensions["enrichment.slow"]
+| order by timestamp desc
+
+
+dependencies
+| where timestamp > ago(1h) and name == "enrich-document"
+| extend slow = tostring(customDimensions["enrichment.slow"])
+| summarize avgDuration = round(avg(duration), 0) by slow
+
+
+deactivate

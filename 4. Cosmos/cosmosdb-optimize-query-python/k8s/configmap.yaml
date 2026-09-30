@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: index-client-config
+  namespace: default
+  labels:
+    app: index-client
+data:
+  # Non-sensitive Cosmos DB settings read by index_functions.get_database().
+  COSMOS_ENDPOINT: "COSMOS_ENDPOINT_VALUE"
+  COSMOS_DATABASE: "indexoptimize"

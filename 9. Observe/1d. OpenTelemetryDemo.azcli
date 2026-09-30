@@ -1,0 +1,37 @@
+# Export telemetry to Azure Monitor
+# Microsoft Learn:
+# https://learn.microsoft.com/en-us/training/modules/instrument-app-opentelemetry/5-export-telemetry-azure-monitor?pivots=text
+
+# Configure fixed-percentage sampling, or use rate-limited sampling.
+from azure.monitor.opentelemetry import configure_azure_monitor
+
+configure_azure_monitor(
+    sampling_ratio=0.1,
+)
+
+# Alternative: sample approximately 1.5 traces per second.
+# configure_azure_monitor(
+#     traces_per_second=1.5,
+# )
+
+# Fixed-percentage sampling through environment variables.
+export OTEL_TRACES_SAMPLER="microsoft.fixed_percentage"
+export OTEL_TRACES_SAMPLER_ARG=0.1
+
+# Rate-limited sampling through environment variables.
+export OTEL_TRACES_SAMPLER="microsoft.rate_limited"
+export OTEL_TRACES_SAMPLER_ARG=1.5
+
+# Set the directory used for offline telemetry storage.
+from azure.monitor.opentelemetry import configure_azure_monitor
+
+configure_azure_monitor(
+    storage_directory="/var/telemetry/rag-pipeline",
+)
+
+# Verify recent requests in Application Insights Logs.
+requests
+| where timestamp > ago(1h)
+| project timestamp, name, duration, success, cloud_RoleName
+| order by timestamp desc
+| take 20

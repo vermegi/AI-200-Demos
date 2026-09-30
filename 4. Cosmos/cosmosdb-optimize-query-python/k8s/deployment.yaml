@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: index-client
+  namespace: default
+  labels:
+    app: index-client
+    version: v1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: index-client
+      version: v1
+  template:
+    metadata:
+      labels:
+        app: index-client
+        version: v1
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccountName: index-client-sa
+      containers:
+      - name: client
+        image: ACR_ENDPOINT/index-client:latest
+        imagePullPolicy: Always
+        ports:
+        - name: http
+          containerPort: 5000
+          protocol: TCP
+        envFrom:
+        - configMapRef:
+            name: index-client-config
+        livenessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"

@@ -1,0 +1,76 @@
+# Samples from:
+# https://learn.microsoft.com/en-us/training/modules/manage-app-secrets-key-vault/3-retrieve-secrets-sdk
+
+# Install the Key Vault secrets SDK and the identity package it uses for authentication.
+pip install azure-keyvault-secrets azure-identity
+
+# Retrieve a secret's current value and inspect its metadata using DefaultAzureCredential.
+from azure.identity import DefaultAzureCredential
+from azure.keyvault.secrets import SecretClient
+
+credential = DefaultAzureCredential()
+client = SecretClient(
+    vault_url="https://kv-ragpipeline-prod.vault.azure.net/",
+    credential=credential
+)
+
+secret = client.get_secret("openai-api-key")
+
+# Access the secret value and metadata
+api_key = secret.value
+version = secret.properties.version
+created = secret.properties.created_on
+content_type = secret.properties.content_type
+
+# List secret metadata without retrieving secret values.
+secret_properties = client.list_properties_of_secrets()
+
+for prop in secret_properties:
+    print(f"Secret: {prop.name}, Enabled: {prop.enabled}, "
+          f"Content type: {prop.content_type}")
+    if prop.tags:
+        print(f"  Tags: {prop.tags}")
+
+# Handle missing secrets, HTTP errors, and network errors separately.
+from azure.core.exceptions import (
+    ResourceNotFoundError,
+    HttpResponseError,
+    ServiceRequestError
+)
+
+def get_secret_safely(client, secret_name):
+    try:
+        secret = client.get_secret(secret_name)
+        return secret.value
+    except ResourceNotFoundError:
+        # Secret doesn't exist - configuration error
+        print(f"Secret '{secret_name}' not found in vault. "
+              "Verify the secret name and vault configuration.")
+        raise
+    except HttpResponseError as e:
+        # Authentication or authorization failure
+        print(f"Access denied or server error for '{secret_name}': "
+              f"{e.status_code} - {e.message}")
+        raise
+    except ServiceRequestError:
+        # Network connectivity issue - may be transient
+        print(f"Network error retrieving '{secret_name}'. "
+              "Check connectivity to Key Vault.")
+        raise
+
+# Retrieve a secret asynchronously to avoid blocking an asyncio event loop.
+from azure.identity.aio import DefaultAzureCredential
+from azure.keyvault.secrets.aio import SecretClient
+
+async def get_ai_credentials():
+    credential = DefaultAzureCredential()
+    client = SecretClient(
+        vault_url="https://kv-ragpipeline-prod.vault.azure.net/",
+        credential=credential
+    )
+
+    async with client:
+        secret = await client.get_secret("openai-api-key")
+
+    await credential.close()
+    return secret.value

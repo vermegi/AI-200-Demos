@@ -8,11 +8,8 @@ $acrName = "acr$userHash"
 $containerAppsEnvironment = "aca-env-demo"
 
 # New app and distinct image name for the scaling sample
-$appName = "agent-api-scale"
-$bootstrapImage = "mcr.microsoft.com/k8se/quickstart:latest"
+$scaleContainerApp = "agent-api-scale"
 $containerImage = "agent-api-scale:v1"
-$targetPort = 8080
-$agentDefaultDelayMs = 500
 
 # Confirm existing environment
 az containerapp env show `
@@ -34,70 +31,19 @@ az acr build `
 
 $image = "$acrName.azurecr.io/$containerImage"
 
-# Create a new app with a public bootstrap image first.
-# This avoids the first-revision ACR unauthorized problem with ABAC-enabled ACR.
-az containerapp create `
-    --name $appName `
-    --resource-group $rg `
-    --environment $containerAppsEnvironment `
-    --image $bootstrapImage `
-    --ingress external `
-    --target-port 80
-
-# Enable system-assigned identity on the Container App
-az containerapp identity assign `
-    --name $appName `
-    --resource-group $rg `
-    --system-assigned
-
-# Capture the Container App managed identity principal ID
-$containerAppPrincipalId = az containerapp show `
-    --name $appName `
-    --resource-group $rg `
-    --query identity.principalId `
-    --output tsv
-
-# Get ACR resource ID for RBAC scope
-$acrResourceId = az acr show `
-    --name $acrName `
-    --resource-group $rg `
-    --query id `
-    --output tsv
-
-# ABAC-enabled ACR: grant pull rights with repository reader role
-az role assignment create `
-    --assignee-object-id $containerAppPrincipalId `
-    --assignee-principal-type ServicePrincipal `
-    --role "Container Registry Repository Reader" `
-    --scope $acrResourceId
-
-# Configure Container App to use system-managed identity for ACR pulls
-az containerapp registry set `
-    --name $appName `
-    --resource-group $rg `
-    --server "$acrName.azurecr.io" `
-    --identity system
-
-# Switch the app to the private image and set runtime config
-az containerapp ingress update `
-    --name $appName `
-    --resource-group $rg `
-    --target-port $targetPort
-
 az containerapp update `
-    --name $appName `
+    --name $scaleContainerApp `
     --resource-group $rg `
-    --image $image `
-    --set-env-vars AGENT_DEFAULT_DELAY_MS=$agentDefaultDelayMs
+    --image $image
 
 # Baseline checks
 az containerapp revision list `
-    --name $appName `
+    --name $scaleContainerApp `
     --resource-group $rg `
     -o table
 
 $FQDN = az containerapp show `
-    --name $appName `
+    --name $scaleContainerApp `
     --resource-group $rg `
     --query properties.configuration.ingress.fqdn `
     -o tsv
@@ -117,7 +63,7 @@ Invoke-RestMethod -Uri "$containerAppUrl/agent/process" `
 # Configure HTTP autoscaling   #
 ################################
 az containerapp update `
-    --name $appName `
+    --name $scaleContainerApp `
     --resource-group $rg `
     --min-replicas 0 `
     --max-replicas 10 `
@@ -126,7 +72,7 @@ az containerapp update `
     --scale-rule-http-concurrency 10
 
 az containerapp show `
-    --name $appName `
+    --name $scaleContainerApp `
     --resource-group $rg `
     --query "properties.template.scale"
 
@@ -134,7 +80,7 @@ az containerapp show `
 # Prepare local env vars for the dashboard client app   #
 #########################################################
 $env:RESOURCE_GROUP = $rg
-$env:CONTAINER_APP_NAME = $appName
+$env:CONTAINER_APP_NAME = $scaleContainerApp
 $env:CONTAINER_APP_URL = $containerAppUrl
 
 #############################################
@@ -156,7 +102,7 @@ python app.py
 cd ..
 
 az containerapp show `
-    --name $appName `
+    --name $scaleContainerApp `
     --resource-group $rg `
     --output yaml > app-config.yaml
 
@@ -168,12 +114,12 @@ az containerapp show `
 #   pollingInterval: 30
 
 az containerapp update `
-    --name $appName `
+    --name $scaleContainerApp `
     --resource-group $rg `
     --yaml app-config.yaml
 
 az containerapp show `
-    --name $appName `
+    --name $scaleContainerApp `
     --resource-group $rg `
     --query "properties.template.scale"
 
@@ -181,7 +127,7 @@ az containerapp show `
 # Optional system scaling logs  #
 #################################
 az containerapp logs show `
-    --name $appName `
+    --name $scaleContainerApp `
     --resource-group $rg `
     --type system `
     --tail 50

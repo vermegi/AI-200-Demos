@@ -1,0 +1,49 @@
+# Process independent work with fan-out/fan-in
+# Microsoft Learn:
+# https://learn.microsoft.com/en-us/training/modules/orchestrate-durable-functions/3-apply-fan-out-fan-in
+
+# Schedule all independent activities, then await them together.
+import azure.durable_functions as df
+
+def orchestrator(
+    context: df.DurableOrchestrationContext,
+):
+    batch = context.get_input()
+    tasks = []
+
+    for document in batch["documents"]:
+        tasks.append(
+            context.call_activity(
+                "process_document",
+                {
+                    "batch_id": batch["batch_id"],
+                    "document_id": document["document_id"],
+                    "blob_url": document["blob_url"],
+                },
+            )
+        )
+
+    results = yield context.task_all(tasks)
+
+    return {
+        "batch_id": batch["batch_id"],
+        "processed": len(results),
+        "requires_review": [
+            item["document_id"]
+            for item in results
+            if item["confidence"] < 0.80
+        ],
+    }
+
+# Bound concurrency by processing deterministic batches.
+batch_size = 20
+all_results = []
+
+for start in range(0, len(documents), batch_size):
+    current_batch = documents[start : start + batch_size]
+    tasks = [
+        context.call_activity("process_document", document)
+        for document in current_batch
+    ]
+    batch_results = yield context.task_all(tasks)
+    all_results.extend(batch_results)

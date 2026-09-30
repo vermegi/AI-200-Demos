@@ -1,0 +1,152 @@
+# Optimizing Redis Data Structures for Vector Storage
+# Microsoft Learn:
+# https://learn.microsoft.com/en-us/training/modules/implement-vector-storage-azure-managed-redis/4-optimize-redis-data-structure
+
+# Redis Hash and Redis JSON can both store vectors for semantic search. Hash is
+# usually smaller and faster for flat records. JSON is more flexible for nested
+# objects, arrays, and documents with more complex structure.
+
+import numpy as np
+from redis.commands.search.field import NumericField, TextField, VectorField
+from redis.commands.search.index_definition import IndexDefinition, IndexType
+
+# Storing a vector in a Redis Hash.
+# The embedding is converted to compact binary bytes and stored beside metadata.
+embedding = np.array([0.1, 0.2, 0.3, 0.4], dtype=np.float32)
+
+redis_client.hset(
+    "product:12345",
+    mapping={
+        "name": "Wireless Mouse",
+        "price": "29.99",
+        "category": "electronics",
+        "embedding": embedding.tobytes(),
+    },
+)
+
+# Creating an index for Hash-based vectors.
+# Hash fields are flat, so the index refers directly to name, price, category,
+# and embedding. The product: prefix limits the index to product hashes.
+hash_schema = (
+    TextField("name"),
+    NumericField("price"),
+    TextField("category"),
+    VectorField(
+        "embedding",
+        "HNSW",
+        {
+            "TYPE": "FLOAT32",
+            "DIM": 1536,
+            "DISTANCE_METRIC": "COSINE",
+        },
+    ),
+)
+
+redis_client.ft("idx:products").create_index(
+    fields=hash_schema,
+    definition=IndexDefinition(
+        prefix=["product:"],
+        index_type=IndexType.HASH,
+    ),
+)
+
+# Hash is a good fit when each item has simple, flat metadata and performance or
+# memory efficiency is more important than nested document structure.
+
+# Storing a vector in Redis JSON.
+# JSON stores the embedding as a numeric list, which is easier to combine with
+# nested fields such as specifications, images, or product variants.
+document = {
+    "name": "Wireless Mouse",
+    "price": 29.99,
+    "category": "electronics",
+    "embedding": embedding.tolist(),
+    "specs": {
+        "color": "black",
+        "wireless": True,
+        "battery": "AA",
+    },
+}
+
+redis_client.json().set("product:12345", "$", document)
+
+# Creating an index for JSON-based vectors.
+# JSONPath expressions begin with $. The as_name values provide names that can
+# be used when returning or querying indexed fields.
+json_schema = (
+    TextField("$.name", as_name="name"),
+    NumericField("$.price", as_name="price"),
+    TextField("$.category", as_name="category"),
+    VectorField(
+        "$.embedding",
+        "HNSW",
+        {
+            "TYPE": "FLOAT32",
+            "DIM": 1536,
+            "DISTANCE_METRIC": "COSINE",
+        },
+        as_name="embedding",
+    ),
+)
+
+redis_client.ft("idx:products-json").create_index(
+    fields=json_schema,
+    definition=IndexDefinition(
+        prefix=["product:"],
+        index_type=IndexType.JSON,
+    ),
+)
+
+# Comparing storage size.
+# A 1536-dimensional FLOAT32 vector uses approximately 6,144 bytes before
+# metadata and Redis overhead. JSON adds formatting and document overhead.
+hash_vector = embedding.tobytes()
+json_vector = embedding.tolist()
+
+# Hash and JSON trade-offs:
+# - Hash: lower memory use, faster queries, flat fields, binary vector bytes.
+# - JSON: more memory overhead, slightly slower, nested fields, numeric arrays.
+# - Hash is usually best for simple product or document metadata.
+# - JSON is useful when the application already uses JSON or needs nested data.
+
+# Migrating a vector record from Hash to JSON.
+# Re-ingest the data and create an index whose IndexType matches the new format.
+hash_data = redis_client.hgetall("product:12345")
+
+# Depending on decode_responses, Redis may return field names and values as bytes.
+name = hash_data.get("name") or hash_data.get(b"name")
+price = hash_data.get("price") or hash_data.get(b"price")
+category = hash_data.get("category") or hash_data.get(b"category")
+embedding_bytes = hash_data.get("embedding") or hash_data.get(b"embedding")
+
+json_document = {
+    "name": name,
+    "price": float(price),
+    "category": category,
+    "embedding": np.frombuffer(
+        embedding_bytes,
+        dtype=np.float32,
+    ).tolist(),
+}
+
+redis_client.json().set("product:12345", "$", json_document)
+
+# Rebuild the search index after migration. The index type must match the data:
+# IndexType.HASH for hashes or IndexType.JSON for JSON documents.
+# Remove the old index first when changing the structure:
+# redis_client.ft("idx:products").dropindex(delete_documents=False)
+
+# Decision guide:
+# Choose Hash when:
+# - Fields are simple and flat.
+# - Memory efficiency and query speed are priorities.
+# - The data model does not need nested objects.
+#
+# Choose JSON when:
+# - Documents contain nested objects or arrays.
+# - One item needs multiple vectors or complex variants.
+# - The application already works with JSON documents.
+# - Flexibility is more important than the smallest memory footprint.
+
+# In both cases, keep the vector dimension and distance metric consistent with
+# the embedding model, and measure memory use and query latency with real data.

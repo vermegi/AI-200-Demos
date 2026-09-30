@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keyvault-client-config
+  labels:
+    app: keyvault-client
+data:
+  # Non-sensitive Key Vault setting read by keyvault_functions.get_client()
+  # Replace KEY_VAULT_URL_VALUE with the output of:
+  #   az keyvault show -g <rg> -n <vaultName> --query properties.vaultUri -o tsv
+  KEY_VAULT_URL: "KEY_VAULT_URL_VALUE"
