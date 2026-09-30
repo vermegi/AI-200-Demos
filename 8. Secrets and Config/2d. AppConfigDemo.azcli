@@ -1,0 +1,40 @@
+# Samples from:
+# https://learn.microsoft.com/en-us/training/modules/manage-app-settings-app-config/4-reference-key-vault-secrets
+
+# Create a Key Vault reference in App Configuration.
+az appconfig kv set-keyvault \
+    --name myAppConfigStore \
+    --key "OpenAI:ApiKey" \
+    --secret-identifier "https://my-keyvault.vault.azure.net/secrets/openai-api-key" \
+    --label "Production"
+
+# Resolve Key Vault references through the App Configuration provider.
+from azure.appconfiguration.provider import load
+from azure.identity import DefaultAzureCredential
+import os
+
+endpoint = os.environ.get("AZURE_APPCONFIG_ENDPOINT")
+credential = DefaultAzureCredential()
+
+config = load(
+    endpoint=endpoint,
+    credential=credential,
+    keyvault_credential=credential
+)
+
+# Regular settings and resolved Key Vault secrets use the same access pattern.
+model_endpoint = config["OpenAI:Endpoint"]
+api_key = config["OpenAI:ApiKey"]
+batch_size = config["Pipeline:BatchSize"]
+
+# Refresh Key Vault references independently from regular settings.
+from azure.appconfiguration.provider import WatchKey
+
+config = load(
+    endpoint=endpoint,
+    credential=credential,
+    keyvault_credential=credential,
+    refresh_on=[WatchKey("Sentinel")],
+    refresh_interval=60,
+    secret_refresh_interval=7200  # Re-resolve secrets every 2 hours
+)

@@ -1,0 +1,66 @@
+# Samples from:
+# https://learn.microsoft.com/en-us/training/modules/manage-app-settings-app-config/3-organize-labels-feature-flags
+
+# Load default settings first, then override them with the environment label.
+from azure.appconfiguration.provider import load, SettingSelector
+from azure.identity import DefaultAzureCredential
+import os
+
+endpoint = os.environ.get("AZURE_APPCONFIG_ENDPOINT")
+environment = os.environ.get("APP_ENVIRONMENT", "Development")
+
+selects = [
+    SettingSelector(key_filter="*", label_filter="\0"),
+    SettingSelector(key_filter="*", label_filter=environment)
+]
+
+config = load(
+    endpoint=endpoint,
+    credential=DefaultAzureCredential(),
+    selects=selects
+)
+
+# Environment-specific values override matching defaults.
+batch_size = config["Pipeline:BatchSize"]
+
+# Load and evaluate feature flags.
+from azure.appconfiguration.provider import load
+from azure.identity import DefaultAzureCredential
+from featuremanagement import FeatureManager
+
+config = load(
+    endpoint=endpoint,
+    credential=DefaultAzureCredential(),
+    feature_flags_enabled=True
+)
+
+feature_manager = FeatureManager(config)
+
+if feature_manager.is_enabled("UseNewEmbeddingsModel"):
+    # Route to the new embeddings model
+    process_with_new_model(document)
+else:
+    # Use the current embeddings model
+    process_with_current_model(document)
+
+# Refresh feature flags dynamically.
+from azure.appconfiguration.provider import load, WatchKey
+from azure.identity import DefaultAzureCredential
+from featuremanagement import FeatureManager
+
+config = load(
+    endpoint=endpoint,
+    credential=DefaultAzureCredential(),
+    feature_flags_enabled=True,
+    feature_flag_refresh_enabled=True,
+    refresh_on=[WatchKey("Sentinel")],
+    refresh_interval=30
+)
+
+feature_manager = FeatureManager(config)
+
+# In an application loop or request handler.
+config.refresh()
+
+if feature_manager.is_enabled("UseNewEmbeddingsModel"):
+    process_with_new_model(document)
