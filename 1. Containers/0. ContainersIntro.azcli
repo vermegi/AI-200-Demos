@@ -1,4 +1,7 @@
-$userHash = "20260826"
+$repoRoot
+$userHash
+
+cd (Join-Path $repoRoot "1. Containers")
 
 mkdir "CleanFolder$userHash"
 

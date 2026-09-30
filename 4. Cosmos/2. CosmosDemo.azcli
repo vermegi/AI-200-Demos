@@ -1,21 +1,19 @@
 # Variables
-$repoRoot = Get-Location
-$userHash = "20260902"
-$rg = "rg-AI200-$userHash"
-$location = "francecentral"
-
+$repoRoot
 $userHash
+$rg
+$location
 
 # The Cosmos DB account, vector database, container, private endpoint, managed identity
 # and federated credentials are created by the Bicep templates in .\deploy.
-$cosmosAccount = "cosmos-rag-$userHash"
-$cosmosVectorDatabase = "vectorstore"
-$cosmosVectorContainer = "vectors"
+$cosmosAccount
+$cosmosVectorDatabase
+$cosmosVectorContainer
 
 # Existing container platform resources, reused for the AKS deployment.
-$acrName = "acr$userHash"
-$aksName = "aks-$userHash"
-$identityName = "id-cosmos-client-$userHash"
+$acrName
+$aksCluster
+$cosmosClientIdentityName
 
 cd (Join-Path $repoRoot "4. Cosmos")
 
@@ -47,9 +45,9 @@ $cosmosEndpoint = az cosmosdb show `
 
 # Confirm the ACR and AKS cluster created in the AKS demo still exist.
 az acr show --resource-group $rg --name $acrName --query name --output tsv
-az aks show --resource-group $rg --name $aksName --query name --output tsv
+az aks show --resource-group $rg --name $aksCluster --query name --output tsv
 
-$cosmosClientIdentityClientId
+$cosmosClientIdentityName
 
 # Build and push the client image with an ACR Task.
 # This uses the caller's existing ACR permissions; admin user credentials are not required.
@@ -67,7 +65,7 @@ $configMapFile = ".\cosmosdb-implement-vector-python\k8s\configmap-$userHash.yam
 
 $templateServiceAccountFile = ".\cosmosdb-implement-vector-python\k8s\serviceaccount.yaml"
 $serviceAccountFile = ".\cosmosdb-implement-vector-python\k8s\serviceaccount-$userHash.yaml"
-(Get-Content $templateServiceAccountFile -Raw).Replace("MANAGED_IDENTITY_CLIENT_ID", $cosmosClientIdentityClientId) | Set-Content $serviceAccountFile -NoNewline
+(Get-Content $templateServiceAccountFile -Raw).Replace("MANAGED_IDENTITY_CLIENT_ID", $cosmosClientIdentityName) | Set-Content $serviceAccountFile -NoNewline
 
 $templateDeploymentFile = ".\cosmosdb-implement-vector-python\k8s\deployment.yaml"
 $deploymentFile = ".\cosmosdb-implement-vector-python\k8s\deployment-$userHash.yaml"
@@ -76,7 +74,7 @@ $deploymentFile = ".\cosmosdb-implement-vector-python\k8s\deployment-$userHash.y
 # The pod federates through the fc-vector-client credential on the shared identity.
 az identity federated-credential list `
     --resource-group $rg `
-    --identity-name $identityName `
+    --identity-name $cosmosClientIdentityName `
     --query "[].{name:name, subject:subject}" `
     --output table
 

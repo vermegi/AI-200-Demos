@@ -1,10 +1,9 @@
 # Variables
-$userHash = "20260616"
-$rg = "rg-AI200-$userHash"
-$location = "francecentral"
-$acrName = "acr$userHash"
-
-$containerAppsEnvironment = "aca-env-demo"
+$userHash
+$rg
+$location
+$acrName
+$containerAppsEnvironment
 
 # Explore Container Apps environments
 az containerapp env show `
@@ -26,7 +25,7 @@ az containerapp up `
 	--ingress external `
 	--query properties.configuration.ingress.fqdn
 
-$appName = "ai-api"
+$aiAppName = "ai-api"
 
 $container_image="ai-api:v1"
 
@@ -44,30 +43,30 @@ az acr build `
 $updatedImage = "$acrName.azurecr.io/$container_image"
 
 az containerapp ingress update `
-	--name $appName `
+	--name $aiAppName `
 	--resource-group $rg `
 	--target-port 8000
 
 # Update an app by creating a new revision
 az containerapp update `
-	--name $appName `
+	--name $aiAppName `
 	--resource-group $rg `
 	--image $updatedImage 
 
 $embeddingsApiKey = "demo-key-12345"
 
 az containerapp secret set `
-	-n $appName `
+	-n $aiAppName `
 	-g $rg `
     --secrets embeddings-api-key=$embeddingsApiKey
 
 az containerapp update `
-	--name $appName `
+	--name $aiAppName `
 	--resource-group $rg `
     --set-env-vars EMBEDDINGS_API_KEY=secretref:embeddings-api-key
 
 az containerapp revision list `
-	--name $appName `
+	--name $aiAppName `
 	--resource-group $rg `
 	-o table
 

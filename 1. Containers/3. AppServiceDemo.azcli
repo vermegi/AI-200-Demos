@@ -1,21 +1,15 @@
-# ZIP file with starter code: 
-# https://github.com/MicrosoftLearning/mslearn-azure-ai/raw/main/downloads/python/app-svc-container-python.zip
-# extracted to StarterPythonApp folder
-# reusing ACR, app service plan and web app created by deploy/acr.bicep
+$userHash
+$repoRoot
 
-cd ../../StarterPythonApp
+cd (Join-Path $repoRoot "1. Containers\StarterPythonApp")
 
-$userHash = "20260616"
+$rg  # Resource Group name
+$location   # Azure region for the resources
 
-$rg = "rg-AI200-$userHash"  # Resource Group name
-$location = "francecentral"   # Azure region for the resources
 
-echo $rg
-
-$acrName = "acr$userHash"
-$appName = "app-docprocessor-$userHash"
-$containerImage = "docprocessor:v1"
+$acrName
 $appName
+$containerImage = "docprocessor:v1"
 
 az acr build `
     --resource-group $rg `

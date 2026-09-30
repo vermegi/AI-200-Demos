@@ -1,4 +1,3 @@
-$repoRoot = Get-Location
 $repoRoot
 
 Expand-Archive `

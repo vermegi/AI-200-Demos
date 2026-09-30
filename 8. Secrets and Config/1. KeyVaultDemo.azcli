@@ -1,14 +1,12 @@
 # Variables
-$repoRoot = Get-Location
 $repoRoot
 
 cd (Join-Path $repoRoot "8. Secrets and Config")
 
-az group show --name $rg
-
 # The Key Vault is created by the Bicep templates in .\deploy.
 $keyVault
 $keyVaultUrl
+$acrName
 
 ####################################################################
 # Containerize the client and deploy it to the existing AKS cluster.

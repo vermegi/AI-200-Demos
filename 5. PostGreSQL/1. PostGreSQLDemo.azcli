@@ -1,27 +1,20 @@
-$repoRoot = Get-Location
-$DB_HOST = $postgresHost
-$DB_NAME = $postgresDatabase
-$DB_USER = $postgresAdmin
-
-$DB_HOST
-$DB_NAME
-$DB_USER 
-
-$DB_PASSWORD = az account get-access-token --resource https://ossrdbms-aad.database.windows.net --query accessToken --output tsv
+$repoRoot
+$postgresHost
+$postgresDatabase
+$postgresAdmin
 
 # Set as environment variables so tools like psql/pgAdmin can pick them up
-$env:DB_HOST = $DB_HOST
-$env:DB_NAME = $DB_NAME
-$env:DB_USER = $DB_USER
-$env:PGPASSWORD = $DB_PASSWORD
-
+$env:DB_HOST = $postgresHost
+$env:DB_NAME = $postgresDatabase
+$env:DB_USER = $postgresAdmin
+$env:PGPASSWORD = az account get-access-token --resource https://ossrdbms-aad.database.windows.net --query accessToken --output tsv
 
 
 # az postgres flexible-server --help
 # az postgres flexible-server connect -n $postgresServer -u $postgresAdmin -d $postgresDatabase
 
 
-psql "host=$DB_HOST port=5432 dbname=$DB_NAME user=$DB_USER password=$DB_PASSWORD sslmode=require"
+psql "host=$postgresHost port=5432 dbname=$postgresDatabase user=$postgresAdmin password=$env:PGPASSWORD sslmode=require"
 
 SELECT version();
 
@@ -79,7 +72,7 @@ python test_workflow.py
 deactivate
 
 
-psql "host=$DB_HOST port=5432 dbname=agent_memory user=$DB_USER password=$DB_PASSWORD sslmode=require"
+psql "host=$postgresHost port=5432 dbname=agent_memory user=$postgresAdmin password=$env:PGPASSWORD sslmode=require"
 
 SELECT id, session_id, started_at, metadata
 FROM conversations

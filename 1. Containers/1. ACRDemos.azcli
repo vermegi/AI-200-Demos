@@ -1,6 +1,8 @@
-$userHash = "20260826"
-$acrName = "acr$userHash"
-echo $acrName
+$userHash
+$acrName
+$repoRoot
+
+cd (Join-Path $repoRoot "1. Containers")
 
 # USE MCAPS ACCOUNT!
 az login

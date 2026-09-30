@@ -1,18 +1,12 @@
-$DB_HOST = $postgresHost
-$DB_NAME = $postgresDatabase
-$DB_USER = $postgresAdmin
-
-$DB_HOST
-$DB_NAME
-$DB_USER
-
-$DB_PASSWORD = az account get-access-token --resource https://ossrdbms-aad.database.windows.net --query accessToken --output tsv
-
+$postgresHost
+$postgresDatabase
+$postgresAdmin
+    
 # Set as environment variables so tools like psql/pgAdmin can pick them up
-$env:DB_HOST = $DB_HOST
-$env:DB_NAME = $DB_NAME
-$env:DB_USER = $DB_USER
-$env:PGPASSWORD = $DB_PASSWORD
+$env:DB_HOST = $postgresHost
+$env:DB_NAME = $postgresDatabase
+$env:DB_USER = $postgresAdmin
+$env:PGPASSWORD = az account get-access-token --resource https://ossrdbms-aad.database.windows.net --query accessToken --output tsv
 
 # az postgres flexible-server --help
 # az postgres flexible-server connect -n $postgresServer -u $postgresAdmin -d $postgresDatabase

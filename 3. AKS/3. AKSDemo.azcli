@@ -1,13 +1,13 @@
 # Variables
-$repoRoot = Get-Location
-$userHash = "20260616"
-$rg = "rg-AI200-$userHash"
-$location = "francecentral"
+$repoRoot
+$userHash
+$rg
+$location
 
-$acrName = "acr$userHash"
-$aksName = "aks-$userHash"
-$foundryName = "foundry-resource-$userHash"
-$foundryProjectName = "foundry-project-$userHash"
+$acrName
+$aksCluster
+$foundryAccount
+$foundryProject
 
 cd (Join-Path $repoRoot "3. AKS")
 

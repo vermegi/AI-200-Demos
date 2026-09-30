@@ -1,4 +1,4 @@
-$repoRoot = Get-Location
+$repoRoot
 
 Expand-Archive `
     -Path (Join-Path $repoRoot "mslearn-azure-ai\downloads\python\aca-deploy-python.zip") `

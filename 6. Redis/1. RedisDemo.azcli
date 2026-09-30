@@ -1,16 +1,12 @@
-$repoRoot = Get-Location
-$REDIS_HOST = $redisHost
-$REDIS_PORT = $redisPort
-$REDIS_DATABASE = $redisDatabase
-
-$REDIS_HOST
-$REDIS_PORT
-$REDIS_DATABASE
+$repoRoot
+$redisHost
+$redisPort
+$redisDatabase
 
 # Set as environment variables so the Python app can connect to Azure Managed Redis.
-$env:REDIS_HOST = $REDIS_HOST
-$env:REDIS_PORT = $REDIS_PORT
-$env:REDIS_DATABASE = $REDIS_DATABASE
+$env:REDIS_HOST = $redisHost
+$env:REDIS_PORT = $redisPort
+$env:REDIS_DATABASE = $redisDatabase
 
 # Configure the Python environment.
 cd (Join-Path $repoRoot "6. Redis\amr-data-operations-python")

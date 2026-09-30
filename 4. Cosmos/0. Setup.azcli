@@ -1,4 +1,4 @@
-$repoRoot = Get-Location
+$repoRoot
 
 Expand-Archive `
     -Path (Join-Path $repoRoot "mslearn-azure-ai\downloads\python\cosmosdb-build-query-python.zip") `

@@ -1,19 +1,19 @@
 # Variables
-$repoRoot = Get-Location
-$userHash = "20260616"
-$rg = "rg-AI200-$userHash"
-$location = "francecentral"
+$repoRoot
+$userHash
+$rg
+$location
 
 # The Cosmos DB account, database, container, private endpoint, managed identity
 # and federated credential are created by the Bicep templates in .\deploy.
-$cosmosAccount = "cosmos-rag-$userHash"
-$cosmosDatabase = "ragstore"
-$cosmosContainer = "chunks"
+$cosmosAccount
+$cosmosDatabase
+$cosmosContainer
 
 # Existing container platform resources, reused for the AKS deployment.
-$acrName = "acr$userHash"
-$aksName = "aks-$userHash"
-$cosmosClientIdentityClientId = "id-cosmos-client-$userHash"
+$acrName
+$aksCluster
+$cosmosClientIdentityName
 
 cd (Join-Path $repoRoot "4. Cosmos")
 
@@ -67,7 +67,7 @@ cd (Join-Path $repoRoot "4. Cosmos")
 
 # Confirm the ACR and AKS cluster created in the AKS demo still exist.
 az acr show --resource-group $rg --name $acrName --query name --output tsv
-az aks show --resource-group $rg --name $aksName --query name --output tsv
+az aks show --resource-group $rg --name $aksCluster --query name --output tsv
 
 # Build and push the client image with an ACR Task.
 # This uses the caller's existing ACR permissions; admin user credentials are not required.
@@ -85,7 +85,8 @@ $configMapFile = ".\cosmosdb-build-query-python\k8s\configmap-$userHash.yaml"
 
 $templateServiceAccountFile = ".\cosmosdb-build-query-python\k8s\serviceaccount.yaml"
 $serviceAccountFile = ".\cosmosdb-build-query-python\k8s\serviceaccount-$userHash.yaml"
-(Get-Content $templateServiceAccountFile -Raw).Replace("MANAGED_IDENTITY_CLIENT_ID", $cosmosClientIdentityClientId) | Set-Content $serviceAccountFile -NoNewline
+(Get-Content $templateServiceAccountFile -Raw).Replace("MANAGED_IDENTITY_CLIENT_ID", $cosmosClientIdentityName
+) | Set-Content $serviceAccountFile -NoNewline
 
 $templateDeploymentFile = ".\cosmosdb-build-query-python\k8s\deployment.yaml"
 $deploymentFile = ".\cosmosdb-build-query-python\k8s\deployment-$userHash.yaml"

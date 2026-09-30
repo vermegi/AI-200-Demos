@@ -1,0 +1,6 @@
+$repoRoot
+
+Expand-Archive `
+    -Path (Join-Path $repoRoot "mslearn-azure-ai\downloads\python\app-svc-container-python.zip") `
+    -DestinationPath (Join-Path $repoRoot "1. Containers\app-svc-container-python") `
+    -Force
